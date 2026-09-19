@@ -1,0 +1,78 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: farmacia-gaby-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init:/docker-entrypoint-initdb.d
+
+  redis:
+    image: redis:7-alpine
+    container_name: farmacia-gaby-redis
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - redis_data:/data
+
+  auth:
+    build:
+      context: ./services/auth
+    container_name: farmacia-gaby-auth
+    ports:
+      - "${AUTH_PORT}:3001"
+    environment:
+      PORT: 3001
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/gaby_auth?schema=public"
+      JWT_SECRET: "${JWT_SECRET}"
+      JWT_EXPIRES_IN: "2h"
+
+  catalogo:
+    build:
+      context: ./services/catalogo
+    container_name: farmacia-gaby-catalogo
+    ports:
+      - "${CATALOGO_PORT}:3002"
+    environment:
+      PORT: 3002
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/gaby_catalogo?schema=public"
+
+  inventario:
+    build:
+      context: ./services/inventario
+    container_name: farmacia-gaby-inventario
+    ports:
+      - "${INVENTARIO_PORT}:3003"
+    environment:
+      PORT: 3003
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/gaby_inventario?schema=public"
+
+  pedidos:
+    build:
+      context: ./services/pedidos
+    container_name: farmacia-gaby-pedidos
+    ports:
+      - "${PEDIDOS_PORT}:3004"
+    environment:
+      PORT: 3004
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/gaby_pedidos?schema=public"
+
+  pagos:
+    build:
+      context: ./services/pagos
+    container_name: farmacia-gaby-pagos
+    ports:
+      - "${PAGOS_PORT}:3005"
+    environment:
+      PORT: 3005
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/gaby_pagos?schema=public"
+
+volumes:
+  postgres_data:
+  redis_data:

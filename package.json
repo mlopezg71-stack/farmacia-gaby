@@ -1,0 +1,24 @@
+{
+  "name": "farmacia-gaby",
+  "version": "1.0.0",
+  "description": "Plataforma web de comercio electrónico y gestión administrativa para Farmacia Gaby.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mlopezg71-stack/farmacia-gaby.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/mlopezg71-stack/farmacia-gaby/issues"
+  },
+  "homepage": "https://github.com/mlopezg71-stack/farmacia-gaby#readme"
+}

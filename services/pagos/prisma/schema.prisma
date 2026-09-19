@@ -1,0 +1,434 @@
+// Farmacia Gaby V05 — pagos. Prisma 7.8.0 / PostgreSQL.
+// Diseño nuevo; no aplicar como reemplazo de MediCore sobre una base existente.
+// Los IDs de otros servicios son referencias escalares, no relaciones entre bases.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EstadoRegistro {
+  ACTIVO
+  INACTIVO
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TARJETA
+  TRANSFERENCIA
+  OTRO
+}
+
+enum EstadoPago {
+  PENDIENTE
+  AUTORIZADO
+  CONFIRMADO
+  FALLIDO
+  CANCELADO
+  REEMBOLSADO_PARCIAL
+  REEMBOLSADO
+}
+
+enum EstadoReembolso {
+  SOLICITADO
+  PROCESANDO
+  CONFIRMADO
+  FALLIDO
+  CANCELADO
+}
+
+enum EstadoFiscal {
+  BORRADOR
+  PENDIENTE
+  EMITIDO
+  RECHAZADO
+  ANULADO
+}
+
+enum EstadoTurno {
+  ABIERTO
+  EN_REVISION
+  CERRADO
+}
+
+enum TipoMovimientoCaja {
+  INGRESO
+  EGRESO
+}
+
+enum EstadoLiquidacion {
+  ABIERTA
+  EN_REVISION
+  APROBADA
+  RECHAZADA
+}
+
+model Pago {
+  id_pago                     Int              @id @default(autoincrement())
+  id_pedido                   Int
+  /// Cliente externo, no datos de tarjeta.
+  id_cliente                  Int?
+  monto                       Decimal          @db.Decimal(14, 2)
+  moneda                      String           @default("GTQ") @db.Char(3)
+  metodo                      MetodoPago
+  estado                      EstadoPago       @default(PENDIENTE)
+  clave_idempotencia          String           @unique @db.VarChar(100)
+  autorizado_at               DateTime?        @db.Timestamptz(3)
+  confirmado_at               DateTime?        @db.Timestamptz(3)
+  version                     Int              @default(1)
+  created_at                  DateTime         @default(now()) @db.Timestamptz(3)
+  updated_at                  DateTime         @updatedAt @db.Timestamptz(3)
+  rel_intento_pago_id_pago    IntentoPago[]    @relation("IntentoPago_id_pago")
+  rel_reembolso_id_pago       Reembolso[]      @relation("Reembolso_id_pago")
+  rel_movimiento_caja_id_pago MovimientoCaja[] @relation("MovimientoCaja_id_pago")
+  rel_cobro_entrega_id_pago   CobroEntrega[]   @relation("CobroEntrega_id_pago")
+
+  @@index([id_pedido])
+  @@index([estado, created_at])
+  @@map("pago")
+}
+
+model IntentoPago {
+  id_intento_pago                Int              @id @default(autoincrement())
+  proveedor                      String           @db.VarChar(60)
+  referencia_externa             String?          @db.VarChar(150)
+  clave_idempotencia             String           @unique @db.VarChar(100)
+  estado                         EstadoPago       @default(PENDIENTE)
+  monto                          Decimal          @db.Decimal(14, 2)
+  finalizado_at                  DateTime?        @db.Timestamptz(3)
+  codigo_error                   String?          @db.VarChar(100)
+  /// Referencia opaca del proveedor; nunca PAN/CVV.
+  token_proveedor                String?
+  id_pago                        Int
+  ref_id_pago                    Pago             @relation("IntentoPago_id_pago", fields: [id_pago], references: [id_pago], onDelete: Restrict, onUpdate: Cascade)
+  created_at                     DateTime         @default(now()) @db.Timestamptz(3)
+  updated_at                     DateTime         @updatedAt @db.Timestamptz(3)
+  rel_evento_pasarela_id_intento EventoPasarela[] @relation("EventoPasarela_id_intento")
+
+  @@unique([proveedor, referencia_externa])
+  @@index([id_pago])
+  @@map("intento_pago")
+}
+
+model EventoPasarela {
+  id_evento_pasarela Int          @id @default(autoincrement())
+  proveedor          String       @db.VarChar(60)
+  evento_externo     String       @db.VarChar(150)
+  tipo               String       @db.VarChar(100)
+  firma_verificada   Boolean      @default(false)
+  resumen_sanitizado Json
+  procesado_at       DateTime?    @db.Timestamptz(3)
+  intentos           Int          @default(0)
+  error_codigo       String?      @db.VarChar(100)
+  id_intento         Int?
+  ref_id_intento     IntentoPago? @relation("EventoPasarela_id_intento", fields: [id_intento], references: [id_intento_pago], onDelete: Restrict, onUpdate: Cascade)
+  created_at         DateTime     @default(now()) @db.Timestamptz(3)
+  updated_at         DateTime     @updatedAt @db.Timestamptz(3)
+
+  @@unique([proveedor, evento_externo])
+  @@index([id_intento])
+  @@map("evento_pasarela")
+}
+
+model Reembolso {
+  id_reembolso                     Int              @id @default(autoincrement())
+  id_devolucion                    Int?
+  monto                            Decimal          @db.Decimal(14, 2)
+  motivo                           String
+  estado                           EstadoReembolso  @default(SOLICITADO)
+  proveedor                        String?          @db.VarChar(60)
+  referencia_proveedor             String?          @db.VarChar(150)
+  clave_idempotencia               String           @unique @db.VarChar(100)
+  confirmado_at                    DateTime?        @db.Timestamptz(3)
+  id_pago                          Int
+  ref_id_pago                      Pago             @relation("Reembolso_id_pago", fields: [id_pago], references: [id_pago], onDelete: Restrict, onUpdate: Cascade)
+  created_at                       DateTime         @default(now()) @db.Timestamptz(3)
+  updated_at                       DateTime         @updatedAt @db.Timestamptz(3)
+  rel_movimiento_caja_id_reembolso MovimientoCaja[] @relation("MovimientoCaja_id_reembolso")
+
+  @@unique([proveedor, referencia_proveedor])
+  @@index([id_pago])
+  @@map("reembolso")
+}
+
+model Factura {
+  id_factura                      Int               @id @default(autoincrement())
+  id_pedido                       Int
+  serie                           String?           @db.VarChar(60)
+  numero                          String?           @db.VarChar(60)
+  referencia_fiscal               String?           @unique @db.VarChar(150)
+  proveedor_fiscal                String?           @db.VarChar(60)
+  estado                          EstadoFiscal      @default(BORRADOR)
+  fecha_emision                   DateTime?         @db.Timestamptz(3)
+  moneda                          String            @default("GTQ") @db.Char(3)
+  nombre_comprador                String            @db.VarChar(200)
+  identificacion_fiscal           String?           @db.VarChar(30)
+  direccion_comprador             String?
+  correo_comprador                String?           @db.VarChar(254)
+  subtotal                        Decimal           @db.Decimal(14, 2)
+  descuento                       Decimal           @default(0) @db.Decimal(14, 2)
+  impuesto                        Decimal           @db.Decimal(14, 2)
+  total                           Decimal           @db.Decimal(14, 2)
+  archivo_privado                 String?
+  clave_idempotencia              String            @unique @db.VarChar(100)
+  created_at                      DateTime          @default(now()) @db.Timestamptz(3)
+  updated_at                      DateTime          @updatedAt @db.Timestamptz(3)
+  rel_detalle_factura_id_factura  DetalleFactura[]  @relation("DetalleFactura_id_factura")
+  rel_documento_ajuste_id_factura DocumentoAjuste[] @relation("DocumentoAjuste_id_factura")
+
+  @@unique([serie, numero])
+  @@index([id_pedido])
+  @@map("factura")
+}
+
+model DetalleFactura {
+  id_detalle_factura Int      @id @default(autoincrement())
+  id_detalle_pedido  Int?
+  sku                String?  @db.VarChar(60)
+  descripcion        String
+  cantidad           Int
+  precio_unitario    Decimal  @db.Decimal(16, 6)
+  descuento          Decimal  @default(0) @db.Decimal(14, 2)
+  base_imponible     Decimal  @db.Decimal(14, 2)
+  tasa_impuesto      Decimal  @db.Decimal(7, 4)
+  impuesto           Decimal  @db.Decimal(14, 2)
+  total              Decimal  @db.Decimal(14, 2)
+  id_factura         Int
+  ref_id_factura     Factura  @relation("DetalleFactura_id_factura", fields: [id_factura], references: [id_factura], onDelete: Restrict, onUpdate: Cascade)
+  created_at         DateTime @default(now()) @db.Timestamptz(3)
+  updated_at         DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([id_factura])
+  @@map("detalle_factura")
+}
+
+model DocumentoAjuste {
+  id_documento_ajuste Int          @id @default(autoincrement())
+  tipo                String       @db.VarChar(40)
+  motivo              String
+  monto               Decimal      @db.Decimal(14, 2)
+  estado              EstadoFiscal @default(BORRADOR)
+  referencia_externa  String?      @unique @db.VarChar(150)
+  clave_idempotencia  String       @unique @db.VarChar(100)
+  id_factura          Int
+  ref_id_factura      Factura      @relation("DocumentoAjuste_id_factura", fields: [id_factura], references: [id_factura], onDelete: Restrict, onUpdate: Cascade)
+  created_at          DateTime     @default(now()) @db.Timestamptz(3)
+  updated_at          DateTime     @updatedAt @db.Timestamptz(3)
+
+  @@index([id_factura])
+  @@map("documento_ajuste")
+}
+
+model Caja {
+  id_caja                Int            @id @default(autoincrement())
+  id_sucursal            Int
+  codigo                 String         @db.VarChar(40)
+  nombre                 String         @db.VarChar(100)
+  estado                 EstadoRegistro @default(ACTIVO)
+  created_at             DateTime       @default(now()) @db.Timestamptz(3)
+  updated_at             DateTime       @updatedAt @db.Timestamptz(3)
+  rel_turno_caja_id_caja TurnoCaja[]    @relation("TurnoCaja_id_caja")
+
+  @@unique([id_sucursal, codigo])
+  @@map("caja")
+}
+
+model TurnoCaja {
+  id_turno_caja                Int              @id @default(autoincrement())
+  id_cajero                    Int
+  estado                       EstadoTurno      @default(ABIERTO)
+  moneda                       String           @default("GTQ") @db.Char(3)
+  abierto_at                   DateTime         @default(now()) @db.Timestamptz(3)
+  cerrado_at                   DateTime?        @db.Timestamptz(3)
+  fondo_inicial                Decimal          @db.Decimal(14, 2)
+  monto_esperado               Decimal?         @db.Decimal(14, 2)
+  monto_contado                Decimal?         @db.Decimal(14, 2)
+  revisado_por                 Int?
+  id_caja                      Int
+  ref_id_caja                  Caja             @relation("TurnoCaja_id_caja", fields: [id_caja], references: [id_caja], onDelete: Restrict, onUpdate: Cascade)
+  created_at                   DateTime         @default(now()) @db.Timestamptz(3)
+  updated_at                   DateTime         @updatedAt @db.Timestamptz(3)
+  rel_movimiento_caja_id_turno MovimientoCaja[] @relation("MovimientoCaja_id_turno")
+
+  @@index([id_cajero, estado])
+  @@index([id_caja])
+  @@map("turno_caja")
+}
+
+model MovimientoCaja {
+  id_movimiento_caja Int                @id @default(autoincrement())
+  tipo               TipoMovimientoCaja
+  monto              Decimal            @db.Decimal(14, 2)
+  motivo             String
+  id_actor           Int
+  clave_idempotencia String             @unique @db.VarChar(100)
+  id_turno           Int
+  ref_id_turno       TurnoCaja          @relation("MovimientoCaja_id_turno", fields: [id_turno], references: [id_turno_caja], onDelete: Restrict, onUpdate: Cascade)
+  id_pago            Int?
+  ref_id_pago        Pago?              @relation("MovimientoCaja_id_pago", fields: [id_pago], references: [id_pago], onDelete: Restrict, onUpdate: Cascade)
+  id_reembolso       Int?
+  ref_id_reembolso   Reembolso?         @relation("MovimientoCaja_id_reembolso", fields: [id_reembolso], references: [id_reembolso], onDelete: Restrict, onUpdate: Cascade)
+  created_at         DateTime           @default(now()) @db.Timestamptz(3)
+
+  @@index([id_turno])
+  @@index([id_pago])
+  @@index([id_reembolso])
+  @@map("movimiento_caja")
+}
+
+model CobroEntrega {
+  id_cobro_entrega                 Int                  @id @default(autoincrement())
+  id_envio                         Int
+  id_repartidor                    Int
+  monto                            Decimal              @db.Decimal(14, 2)
+  moneda                           String               @default("GTQ") @db.Char(3)
+  referencia                       String               @unique @db.VarChar(100)
+  id_pago                          Int
+  ref_id_pago                      Pago                 @relation("CobroEntrega_id_pago", fields: [id_pago], references: [id_pago], onDelete: Restrict, onUpdate: Cascade)
+  created_at                       DateTime             @default(now()) @db.Timestamptz(3)
+  updated_at                       DateTime             @updatedAt @db.Timestamptz(3)
+  rel_detalle_liquidacion_id_cobro DetalleLiquidacion[] @relation("DetalleLiquidacion_id_cobro")
+
+  @@unique([id_pago])
+  @@index([id_pago])
+  @@map("cobro_entrega")
+}
+
+model LiquidacionEntrega {
+  id_liquidacion_entrega                 Int                  @id @default(autoincrement())
+  id_repartidor                          Int
+  id_cajero                              Int
+  moneda                                 String               @default("GTQ") @db.Char(3)
+  periodo_desde                          DateTime             @db.Timestamptz(3)
+  periodo_hasta                          DateTime             @db.Timestamptz(3)
+  monto_esperado                         Decimal              @db.Decimal(14, 2)
+  monto_entregado                        Decimal              @db.Decimal(14, 2)
+  /// Diferencia = entregado - esperado, calculada; no duplicar como campo editable.
+  estado                                 EstadoLiquidacion    @default(ABIERTA)
+  cerrada_at                             DateTime?            @db.Timestamptz(3)
+  observaciones                          String?
+  created_at                             DateTime             @default(now()) @db.Timestamptz(3)
+  updated_at                             DateTime             @updatedAt @db.Timestamptz(3)
+  rel_detalle_liquidacion_id_liquidacion DetalleLiquidacion[] @relation("DetalleLiquidacion_id_liquidacion")
+
+  @@map("liquidacion_entrega")
+}
+
+model DetalleLiquidacion {
+  id_detalle_liquidacion Int                @id @default(autoincrement())
+  monto                  Decimal            @db.Decimal(14, 2)
+  id_liquidacion         Int
+  ref_id_liquidacion     LiquidacionEntrega @relation("DetalleLiquidacion_id_liquidacion", fields: [id_liquidacion], references: [id_liquidacion_entrega], onDelete: Restrict, onUpdate: Cascade)
+  id_cobro               Int
+  ref_id_cobro           CobroEntrega       @relation("DetalleLiquidacion_id_cobro", fields: [id_cobro], references: [id_cobro_entrega], onDelete: Restrict, onUpdate: Cascade)
+  created_at             DateTime           @default(now()) @db.Timestamptz(3)
+  updated_at             DateTime           @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_cobro])
+  @@index([id_liquidacion])
+  @@index([id_cobro])
+  @@map("detalle_liquidacion")
+}
+
+model AuditoriaEvento {
+  id_auditoria_evento Int      @id @default(autoincrement())
+  id_actor            Int?
+  actor_sistema       String?  @db.VarChar(100)
+  accion              String   @db.VarChar(100)
+  entidad             String   @db.VarChar(100)
+  referencia          String   @db.VarChar(100)
+  resultado           String   @db.VarChar(40)
+  correlacion         String   @db.VarChar(100)
+  cambios_sanitizados Json?
+  created_at          DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([entidad, referencia])
+  @@index([created_at])
+  @@map("auditoria_evento")
+}
+
+model OutboxEvento {
+  id_outbox_evento  Int       @id @default(autoincrement())
+  evento_id         String    @unique @default(uuid()) @db.Uuid
+  tipo              String    @db.VarChar(100)
+  agregado          String    @db.VarChar(100)
+  referencia        String    @db.VarChar(100)
+  version           Int
+  payload           Json
+  publicado_at      DateTime? @db.Timestamptz(3)
+  intentos          Int       @default(0)
+  siguiente_intento DateTime? @db.Timestamptz(3)
+  created_at        DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at        DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([publicado_at, siguiente_intento])
+  @@map("outbox_evento")
+}
+
+model InboxEvento {
+  id_inbox_evento Int       @id @default(autoincrement())
+  consumidor      String    @db.VarChar(100)
+  evento_id       String    @db.Uuid
+  procesado_at    DateTime? @db.Timestamptz(3)
+  resultado       String?   @db.VarChar(40)
+  created_at      DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at      DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([consumidor, evento_id])
+  @@map("inbox_evento")
+}
+
+model OperacionIdempotente {
+  id_operacion_idempotente Int      @id @default(autoincrement())
+  alcance                  String   @db.VarChar(100)
+  clave                    String   @db.VarChar(150)
+  hash_solicitud           String   @db.VarChar(128)
+  estado                   String   @db.VarChar(40)
+  referencia_resultado     String?  @db.VarChar(100)
+  vence_at                 DateTime @db.Timestamptz(3)
+  created_at               DateTime @default(now()) @db.Timestamptz(3)
+  updated_at               DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([alcance, clave])
+  @@index([vence_at])
+  @@map("operacion_idempotente")
+}
+
+model Notificacion {
+  id_notificacion                          Int                   @id @default(autoincrement())
+  id_usuario                               Int
+  evento                                   String                @db.VarChar(100)
+  titulo                                   String                @db.VarChar(200)
+  mensaje                                  String
+  url_interna                              String?
+  canal                                    String                @db.VarChar(30)
+  leida_at                                 DateTime?             @db.Timestamptz(3)
+  clave_idempotencia                       String                @unique @db.VarChar(120)
+  created_at                               DateTime              @default(now()) @db.Timestamptz(3)
+  updated_at                               DateTime              @updatedAt @db.Timestamptz(3)
+  rel_entrega_notificacion_id_notificacion EntregaNotificacion[] @relation("EntregaNotificacion_id_notificacion")
+
+  @@index([id_usuario, leida_at, created_at])
+  @@map("notificacion")
+}
+
+model EntregaNotificacion {
+  id_entrega_notificacion Int          @id @default(autoincrement())
+  proveedor               String       @db.VarChar(60)
+  referencia_proveedor    String?      @db.VarChar(150)
+  estado                  String       @db.VarChar(30)
+  intento                 Int
+  error_codigo            String?      @db.VarChar(100)
+  siguiente_intento       DateTime?    @db.Timestamptz(3)
+  id_notificacion         Int
+  ref_id_notificacion     Notificacion @relation("EntregaNotificacion_id_notificacion", fields: [id_notificacion], references: [id_notificacion], onDelete: Restrict, onUpdate: Cascade)
+  created_at              DateTime     @default(now()) @db.Timestamptz(3)
+  updated_at              DateTime     @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_notificacion, intento])
+  @@index([id_notificacion])
+  @@map("entrega_notificacion")
+}

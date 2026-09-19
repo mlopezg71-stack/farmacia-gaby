@@ -1,0 +1,21 @@
+import express from "express";
+import cors from "cors";
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+app.get("/health", (req, res) => {
+    res.status(200).json({
+        service: "inventario",
+        status: "OK",
+        message: "Farmacia Gaby - Inventario Service funcionando",
+    });
+});
+
+const PORT = process.env.PORT || 3003;
+
+app.listen(PORT, () => {
+    console.log(`Inventario Service corriendo en puerto ${PORT}`);
+});

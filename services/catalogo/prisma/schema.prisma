@@ -1,0 +1,776 @@
+// Farmacia Gaby V05 — catalogo. Prisma 7.8.0 / PostgreSQL.
+// Diseño nuevo; no aplicar como reemplazo de MediCore sobre una base existente.
+// Los IDs de otros servicios son referencias escalares, no relaciones entre bases.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EstadoRegistro {
+  ACTIVO
+  INACTIVO
+}
+
+enum EstadoPublicacion {
+  BORRADOR
+  PUBLICADO
+  ARCHIVADO
+}
+
+enum TipoProducto {
+  MEDICAMENTO
+  CUIDADO_PERSONAL
+  DISPOSITIVO
+  SUPLEMENTO
+  OTRO
+}
+
+enum TipoPresentacion {
+  UNIDAD
+  BLISTER
+  CAJA
+  FRASCO
+  TUBO
+  SOBRE
+  PAQUETE
+  OTRO
+}
+
+enum TipoPromocion {
+  PORCENTAJE
+  MONTO
+  PRECIO_FIJO
+  COMBO
+}
+
+enum EstadoUsoPromocion {
+  RESERVADO
+  CONFIRMADO
+  LIBERADO
+  VENCIDO
+}
+
+enum TipoPagina {
+  QUIENES_SOMOS
+  POLITICA
+  AYUDA
+  BLOG
+  EMPRESAS
+}
+
+enum TipoContacto {
+  TELEFONO
+  WHATSAPP
+  CORREO
+  RED_SOCIAL
+}
+
+model Marca {
+  id_marca              Int            @id @default(autoincrement())
+  nombre                String         @unique @db.VarChar(150)
+  slug                  String         @unique @db.VarChar(180)
+  descripcion           String?
+  imagen_clave          String?
+  estado                EstadoRegistro @default(ACTIVO)
+  created_at            DateTime       @default(now()) @db.Timestamptz(3)
+  updated_at            DateTime       @updatedAt @db.Timestamptz(3)
+  rel_producto_id_marca Producto[]     @relation("Producto_id_marca")
+
+  @@map("marca")
+}
+
+model Laboratorio {
+  id_laboratorio              Int            @id @default(autoincrement())
+  nombre                      String         @unique @db.VarChar(150)
+  slug                        String         @unique @db.VarChar(180)
+  descripcion                 String?
+  estado                      EstadoRegistro @default(ACTIVO)
+  created_at                  DateTime       @default(now()) @db.Timestamptz(3)
+  updated_at                  DateTime       @updatedAt @db.Timestamptz(3)
+  rel_producto_id_laboratorio Producto[]     @relation("Producto_id_laboratorio")
+
+  @@map("laboratorio")
+}
+
+model Producto {
+  id_producto                           Int                    @id @default(autoincrement())
+  nombre                                String                 @db.VarChar(200)
+  slug                                  String                 @unique @db.VarChar(220)
+  descripcion_corta                     String?                @db.VarChar(500)
+  descripcion_larga                     String?
+  tipo                                  TipoProducto
+  requiere_receta                       Boolean                @default(false)
+  registro_sanitario                    String?                @db.VarChar(100)
+  conservacion                          String?
+  advertencias                          String?
+  estado                                EstadoPublicacion      @default(BORRADOR)
+  visible_web                           Boolean                @default(false)
+  destacado                             Boolean                @default(false)
+  /// Identifica la unidad mínima contable de ESTE producto, no habilita fraccionamiento.
+  unidad_base                           String                 @db.VarChar(30)
+  id_marca                              Int?
+  ref_id_marca                          Marca?                 @relation("Producto_id_marca", fields: [id_marca], references: [id_marca], onDelete: Restrict, onUpdate: Cascade)
+  id_laboratorio                        Int?
+  ref_id_laboratorio                    Laboratorio?           @relation("Producto_id_laboratorio", fields: [id_laboratorio], references: [id_laboratorio], onDelete: Restrict, onUpdate: Cascade)
+  created_at                            DateTime               @default(now()) @db.Timestamptz(3)
+  updated_at                            DateTime               @updatedAt @db.Timestamptz(3)
+  rel_presentacion_producto_id_producto PresentacionProducto[] @relation("PresentacionProducto_id_producto")
+  rel_producto_categoria_id_producto    ProductoCategoria[]    @relation("ProductoCategoria_id_producto")
+  rel_producto_imagen_id_producto       ProductoImagen[]       @relation("ProductoImagen_id_producto")
+  rel_producto_etiqueta_id_producto     ProductoEtiqueta[]     @relation("ProductoEtiqueta_id_producto")
+  rel_producto_relacionado_id_origen    ProductoRelacionado[]  @relation("ProductoRelacionado_id_origen")
+  rel_producto_relacionado_id_destino   ProductoRelacionado[]  @relation("ProductoRelacionado_id_destino")
+  rel_documento_producto_id_producto    DocumentoProducto[]    @relation("DocumentoProducto_id_producto")
+  rel_promocion_producto_id_producto    PromocionProducto[]    @relation("PromocionProducto_id_producto")
+
+  @@index([nombre])
+  @@index([estado, visible_web])
+  @@index([id_marca])
+  @@index([id_laboratorio])
+  @@map("producto")
+}
+
+model PresentacionProducto {
+  id_presentacion_producto                    Int                      @id @default(autoincrement())
+  sku                                         String                   @unique @db.VarChar(60)
+  codigo_barras                               String?                  @unique @db.VarChar(60)
+  nombre                                      String                   @db.VarChar(150)
+  tipo                                        TipoPresentacion
+  unidades_base                               Int
+  contenido                                   Decimal?                 @db.Decimal(12, 4)
+  unidad_contenido                            String?                  @db.VarChar(30)
+  forma_farmaceutica                          String?                  @db.VarChar(100)
+  concentracion_descriptiva                   String?                  @db.VarChar(100)
+  permite_venta                               Boolean                  @default(true)
+  permite_fraccionamiento                     Boolean                  @default(false)
+  peso_gramos                                 Decimal?                 @db.Decimal(12, 3)
+  estado                                      EstadoRegistro           @default(ACTIVO)
+  id_producto                                 Int
+  ref_id_producto                             Producto                 @relation("PresentacionProducto_id_producto", fields: [id_producto], references: [id_producto], onDelete: Restrict, onUpdate: Cascade)
+  created_at                                  DateTime                 @default(now()) @db.Timestamptz(3)
+  updated_at                                  DateTime                 @updatedAt @db.Timestamptz(3)
+  rel_conversion_presentacion_id_origen       ConversionPresentacion[] @relation("ConversionPresentacion_id_origen")
+  rel_conversion_presentacion_id_destino      ConversionPresentacion[] @relation("ConversionPresentacion_id_destino")
+  rel_producto_componente_id_presentacion     ProductoComponente[]     @relation("ProductoComponente_id_presentacion")
+  rel_producto_imagen_id_presentacion         ProductoImagen[]         @relation("ProductoImagen_id_presentacion")
+  rel_valor_atributo_id_presentacion          ValorAtributo[]          @relation("ValorAtributo_id_presentacion")
+  rel_precio_presentacion_id_presentacion     PrecioPresentacion[]     @relation("PrecioPresentacion_id_presentacion")
+  rel_promocion_combo_detalle_id_presentacion PromocionComboDetalle[]  @relation("PromocionComboDetalle_id_presentacion")
+
+  @@index([id_producto])
+  @@map("presentacion_producto")
+}
+
+model ConversionPresentacion {
+  id_conversion_presentacion Int                  @id @default(autoincrement())
+  cantidad_destino           Int
+  version                    Int                  @default(1)
+  activa                     Boolean              @default(true)
+  id_origen                  Int
+  ref_id_origen              PresentacionProducto @relation("ConversionPresentacion_id_origen", fields: [id_origen], references: [id_presentacion_producto], onDelete: Restrict, onUpdate: Cascade)
+  id_destino                 Int
+  ref_id_destino             PresentacionProducto @relation("ConversionPresentacion_id_destino", fields: [id_destino], references: [id_presentacion_producto], onDelete: Restrict, onUpdate: Cascade)
+  created_at                 DateTime             @default(now()) @db.Timestamptz(3)
+  updated_at                 DateTime             @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_origen, id_destino, version])
+  @@index([id_origen])
+  @@index([id_destino])
+  @@map("conversion_presentacion")
+}
+
+model PrincipioActivo {
+  id_principio_activo                  Int                  @id @default(autoincrement())
+  nombre                               String               @unique @db.VarChar(180)
+  sinonimos                            String[]
+  created_at                           DateTime             @default(now()) @db.Timestamptz(3)
+  updated_at                           DateTime             @updatedAt @db.Timestamptz(3)
+  rel_producto_componente_id_principio ProductoComponente[] @relation("ProductoComponente_id_principio")
+
+  @@map("principio_activo")
+}
+
+model ProductoComponente {
+  id_producto_componente Int                  @id @default(autoincrement())
+  cantidad               Decimal?             @db.Decimal(12, 4)
+  unidad                 String?              @db.VarChar(30)
+  denominador            Decimal?             @db.Decimal(12, 4)
+  unidad_denominador     String?              @db.VarChar(30)
+  id_presentacion        Int
+  ref_id_presentacion    PresentacionProducto @relation("ProductoComponente_id_presentacion", fields: [id_presentacion], references: [id_presentacion_producto], onDelete: Restrict, onUpdate: Cascade)
+  id_principio           Int
+  ref_id_principio       PrincipioActivo      @relation("ProductoComponente_id_principio", fields: [id_principio], references: [id_principio_activo], onDelete: Restrict, onUpdate: Cascade)
+  created_at             DateTime             @default(now()) @db.Timestamptz(3)
+  updated_at             DateTime             @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_presentacion, id_principio])
+  @@index([id_presentacion])
+  @@index([id_principio])
+  @@map("producto_componente")
+}
+
+model Categoria {
+  id_categoria                         Int                  @id @default(autoincrement())
+  nombre                               String               @db.VarChar(100)
+  slug                                 String               @unique @db.VarChar(150)
+  descripcion                          String?
+  imagen_clave                         String?
+  orden                                Int                  @default(0)
+  estado                               EstadoRegistro       @default(ACTIVO)
+  id_padre                             Int?
+  ref_id_padre                         Categoria?           @relation("Categoria_id_padre", fields: [id_padre], references: [id_categoria], onDelete: Restrict, onUpdate: Cascade)
+  created_at                           DateTime             @default(now()) @db.Timestamptz(3)
+  updated_at                           DateTime             @updatedAt @db.Timestamptz(3)
+  rel_categoria_id_padre               Categoria[]          @relation("Categoria_id_padre")
+  rel_producto_categoria_id_categoria  ProductoCategoria[]  @relation("ProductoCategoria_id_categoria")
+  rel_promocion_categoria_id_categoria PromocionCategoria[] @relation("PromocionCategoria_id_categoria")
+
+  @@index([id_padre])
+  @@map("categoria")
+}
+
+model ProductoCategoria {
+  id_producto_categoria Int       @id @default(autoincrement())
+  principal             Boolean   @default(false)
+  id_producto           Int
+  ref_id_producto       Producto  @relation("ProductoCategoria_id_producto", fields: [id_producto], references: [id_producto], onDelete: Restrict, onUpdate: Cascade)
+  id_categoria          Int
+  ref_id_categoria      Categoria @relation("ProductoCategoria_id_categoria", fields: [id_categoria], references: [id_categoria], onDelete: Restrict, onUpdate: Cascade)
+  created_at            DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at            DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_producto, id_categoria])
+  @@index([id_producto])
+  @@index([id_categoria])
+  @@map("producto_categoria")
+}
+
+model ProductoImagen {
+  id_producto_imagen  Int                   @id @default(autoincrement())
+  clave_archivo       String
+  texto_alternativo   String                @db.VarChar(250)
+  orden               Int                   @default(0)
+  principal           Boolean               @default(false)
+  mime                String                @db.VarChar(100)
+  ancho               Int?
+  alto                Int?
+  id_producto         Int
+  ref_id_producto     Producto              @relation("ProductoImagen_id_producto", fields: [id_producto], references: [id_producto], onDelete: Restrict, onUpdate: Cascade)
+  id_presentacion     Int?
+  ref_id_presentacion PresentacionProducto? @relation("ProductoImagen_id_presentacion", fields: [id_presentacion], references: [id_presentacion_producto], onDelete: Restrict, onUpdate: Cascade)
+  created_at          DateTime              @default(now()) @db.Timestamptz(3)
+  updated_at          DateTime              @updatedAt @db.Timestamptz(3)
+
+  @@index([id_producto])
+  @@index([id_presentacion])
+  @@map("producto_imagen")
+}
+
+model Etiqueta {
+  id_etiqueta                       Int                @id @default(autoincrement())
+  nombre                            String             @unique @db.VarChar(100)
+  slug                              String             @unique @db.VarChar(120)
+  created_at                        DateTime           @default(now()) @db.Timestamptz(3)
+  updated_at                        DateTime           @updatedAt @db.Timestamptz(3)
+  rel_producto_etiqueta_id_etiqueta ProductoEtiqueta[] @relation("ProductoEtiqueta_id_etiqueta")
+
+  @@map("etiqueta")
+}
+
+model ProductoEtiqueta {
+  id_producto_etiqueta Int      @id @default(autoincrement())
+  id_producto          Int
+  ref_id_producto      Producto @relation("ProductoEtiqueta_id_producto", fields: [id_producto], references: [id_producto], onDelete: Restrict, onUpdate: Cascade)
+  id_etiqueta          Int
+  ref_id_etiqueta      Etiqueta @relation("ProductoEtiqueta_id_etiqueta", fields: [id_etiqueta], references: [id_etiqueta], onDelete: Restrict, onUpdate: Cascade)
+  created_at           DateTime @default(now()) @db.Timestamptz(3)
+  updated_at           DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_producto, id_etiqueta])
+  @@index([id_producto])
+  @@index([id_etiqueta])
+  @@map("producto_etiqueta")
+}
+
+model Atributo {
+  id_atributo                    Int             @id @default(autoincrement())
+  codigo                         String          @unique @db.VarChar(60)
+  nombre                         String          @db.VarChar(100)
+  tipo                           String          @db.VarChar(30)
+  created_at                     DateTime        @default(now()) @db.Timestamptz(3)
+  updated_at                     DateTime        @updatedAt @db.Timestamptz(3)
+  rel_valor_atributo_id_atributo ValorAtributo[] @relation("ValorAtributo_id_atributo")
+
+  @@map("atributo")
+}
+
+model ValorAtributo {
+  id_valor_atributo   Int                  @id @default(autoincrement())
+  valor               String               @db.VarChar(250)
+  id_atributo         Int
+  ref_id_atributo     Atributo             @relation("ValorAtributo_id_atributo", fields: [id_atributo], references: [id_atributo], onDelete: Restrict, onUpdate: Cascade)
+  id_presentacion     Int
+  ref_id_presentacion PresentacionProducto @relation("ValorAtributo_id_presentacion", fields: [id_presentacion], references: [id_presentacion_producto], onDelete: Restrict, onUpdate: Cascade)
+  created_at          DateTime             @default(now()) @db.Timestamptz(3)
+  updated_at          DateTime             @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_atributo, id_presentacion])
+  @@index([id_atributo])
+  @@index([id_presentacion])
+  @@map("valor_atributo")
+}
+
+model ProductoRelacionado {
+  id_producto_relacionado Int      @id @default(autoincrement())
+  tipo                    String   @db.VarChar(40)
+  orden                   Int      @default(0)
+  revisado_por            Int?
+  id_origen               Int
+  ref_id_origen           Producto @relation("ProductoRelacionado_id_origen", fields: [id_origen], references: [id_producto], onDelete: Restrict, onUpdate: Cascade)
+  id_destino              Int
+  ref_id_destino          Producto @relation("ProductoRelacionado_id_destino", fields: [id_destino], references: [id_producto], onDelete: Restrict, onUpdate: Cascade)
+  created_at              DateTime @default(now()) @db.Timestamptz(3)
+  updated_at              DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_origen, id_destino, tipo])
+  @@index([id_origen])
+  @@index([id_destino])
+  @@map("producto_relacionado")
+}
+
+model DocumentoProducto {
+  id_documento_producto Int       @id @default(autoincrement())
+  tipo                  String    @db.VarChar(60)
+  clave_archivo         String
+  titulo                String    @db.VarChar(180)
+  version               String    @db.VarChar(30)
+  publicado_at          DateTime? @db.Timestamptz(3)
+  id_producto           Int
+  ref_id_producto       Producto  @relation("DocumentoProducto_id_producto", fields: [id_producto], references: [id_producto], onDelete: Restrict, onUpdate: Cascade)
+  created_at            DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at            DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([id_producto])
+  @@map("documento_producto")
+}
+
+model ListaPrecio {
+  id_lista_precio                  Int                  @id @default(autoincrement())
+  nombre                           String               @db.VarChar(100)
+  codigo                           String               @unique @db.VarChar(50)
+  moneda                           String               @default("GTQ") @db.Char(3)
+  estado                           EstadoRegistro       @default(ACTIVO)
+  created_at                       DateTime             @default(now()) @db.Timestamptz(3)
+  updated_at                       DateTime             @updatedAt @db.Timestamptz(3)
+  rel_precio_presentacion_id_lista PrecioPresentacion[] @relation("PrecioPresentacion_id_lista")
+
+  @@map("lista_precio")
+}
+
+model PrecioPresentacion {
+  id_precio_presentacion Int                  @id @default(autoincrement())
+  importe                Decimal              @db.Decimal(14, 2)
+  incluye_impuesto       Boolean              @default(true)
+  tasa_impuesto          Decimal              @db.Decimal(7, 4)
+  /// Inventario.Sucursal; null representa lista general.
+  id_sucursal            Int?
+  canal                  String               @default("TODOS") @db.VarChar(30)
+  desde                  DateTime             @db.Timestamptz(3)
+  hasta                  DateTime?            @db.Timestamptz(3)
+  id_lista               Int
+  ref_id_lista           ListaPrecio          @relation("PrecioPresentacion_id_lista", fields: [id_lista], references: [id_lista_precio], onDelete: Restrict, onUpdate: Cascade)
+  id_presentacion        Int
+  ref_id_presentacion    PresentacionProducto @relation("PrecioPresentacion_id_presentacion", fields: [id_presentacion], references: [id_presentacion_producto], onDelete: Restrict, onUpdate: Cascade)
+  created_at             DateTime             @default(now()) @db.Timestamptz(3)
+  updated_at             DateTime             @updatedAt @db.Timestamptz(3)
+
+  @@index([id_presentacion, id_lista, desde])
+  @@index([id_lista])
+  @@index([id_presentacion])
+  @@map("precio_presentacion")
+}
+
+model SinonimoBusqueda {
+  id_sinonimo_busqueda Int      @id @default(autoincrement())
+  termino              String   @db.VarChar(150)
+  sinonimo             String   @db.VarChar(150)
+  activo               Boolean  @default(true)
+  created_at           DateTime @default(now()) @db.Timestamptz(3)
+  updated_at           DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([termino, sinonimo])
+  @@map("sinonimo_busqueda")
+}
+
+model Promocion {
+  id_promocion                             Int                     @id @default(autoincrement())
+  codigo                                   String                  @unique @db.VarChar(60)
+  nombre                                   String                  @db.VarChar(150)
+  descripcion                              String?
+  tipo                                     TipoPromocion
+  valor                                    Decimal?                @db.Decimal(14, 2)
+  desde                                    DateTime                @db.Timestamptz(3)
+  hasta                                    DateTime                @db.Timestamptz(3)
+  activa                                   Boolean                 @default(false)
+  prioridad                                Int                     @default(0)
+  acumulable                               Boolean                 @default(false)
+  minimo_compra                            Decimal                 @default(0) @db.Decimal(14, 2)
+  tope_descuento                           Decimal?                @db.Decimal(14, 2)
+  limite_global                            Int?
+  limite_cliente                           Int?
+  canales                                  String[]
+  version                                  Int                     @default(1)
+  created_at                               DateTime                @default(now()) @db.Timestamptz(3)
+  updated_at                               DateTime                @updatedAt @db.Timestamptz(3)
+  rel_promocion_producto_id_promocion      PromocionProducto[]     @relation("PromocionProducto_id_promocion")
+  rel_promocion_categoria_id_promocion     PromocionCategoria[]    @relation("PromocionCategoria_id_promocion")
+  rel_promocion_sucursal_id_promocion      PromocionSucursal[]     @relation("PromocionSucursal_id_promocion")
+  rel_promocion_combo_detalle_id_promocion PromocionComboDetalle[] @relation("PromocionComboDetalle_id_promocion")
+  rel_cupon_id_promocion                   Cupon[]                 @relation("Cupon_id_promocion")
+  rel_uso_promocion_id_promocion           UsoPromocion[]          @relation("UsoPromocion_id_promocion")
+
+  @@index([activa, desde, hasta])
+  @@map("promocion")
+}
+
+model PromocionProducto {
+  id_promocion_producto Int       @id @default(autoincrement())
+  id_promocion          Int
+  ref_id_promocion      Promocion @relation("PromocionProducto_id_promocion", fields: [id_promocion], references: [id_promocion], onDelete: Restrict, onUpdate: Cascade)
+  id_producto           Int
+  ref_id_producto       Producto  @relation("PromocionProducto_id_producto", fields: [id_producto], references: [id_producto], onDelete: Restrict, onUpdate: Cascade)
+  created_at            DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at            DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_promocion, id_producto])
+  @@index([id_promocion])
+  @@index([id_producto])
+  @@map("promocion_producto")
+}
+
+model PromocionCategoria {
+  id_promocion_categoria Int       @id @default(autoincrement())
+  id_promocion           Int
+  ref_id_promocion       Promocion @relation("PromocionCategoria_id_promocion", fields: [id_promocion], references: [id_promocion], onDelete: Restrict, onUpdate: Cascade)
+  id_categoria           Int
+  ref_id_categoria       Categoria @relation("PromocionCategoria_id_categoria", fields: [id_categoria], references: [id_categoria], onDelete: Restrict, onUpdate: Cascade)
+  created_at             DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at             DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_promocion, id_categoria])
+  @@index([id_promocion])
+  @@index([id_categoria])
+  @@map("promocion_categoria")
+}
+
+model PromocionSucursal {
+  id_promocion_sucursal Int       @id @default(autoincrement())
+  id_sucursal           Int
+  id_promocion          Int
+  ref_id_promocion      Promocion @relation("PromocionSucursal_id_promocion", fields: [id_promocion], references: [id_promocion], onDelete: Restrict, onUpdate: Cascade)
+  created_at            DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at            DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_promocion, id_sucursal])
+  @@index([id_promocion])
+  @@map("promocion_sucursal")
+}
+
+model PromocionComboDetalle {
+  id_promocion_combo_detalle Int                  @id @default(autoincrement())
+  cantidad                   Int
+  bonificada                 Boolean              @default(false)
+  id_promocion               Int
+  ref_id_promocion           Promocion            @relation("PromocionComboDetalle_id_promocion", fields: [id_promocion], references: [id_promocion], onDelete: Restrict, onUpdate: Cascade)
+  id_presentacion            Int
+  ref_id_presentacion        PresentacionProducto @relation("PromocionComboDetalle_id_presentacion", fields: [id_presentacion], references: [id_presentacion_producto], onDelete: Restrict, onUpdate: Cascade)
+  created_at                 DateTime             @default(now()) @db.Timestamptz(3)
+  updated_at                 DateTime             @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_promocion, id_presentacion, bonificada])
+  @@index([id_promocion])
+  @@index([id_presentacion])
+  @@map("promocion_combo_detalle")
+}
+
+model Cupon {
+  id_cupon                   Int            @id @default(autoincrement())
+  codigo                     String         @unique @db.VarChar(60)
+  desde                      DateTime       @db.Timestamptz(3)
+  hasta                      DateTime       @db.Timestamptz(3)
+  limite_usos                Int?
+  id_cliente                 Int?
+  activo                     Boolean        @default(false)
+  id_promocion               Int
+  ref_id_promocion           Promocion      @relation("Cupon_id_promocion", fields: [id_promocion], references: [id_promocion], onDelete: Restrict, onUpdate: Cascade)
+  created_at                 DateTime       @default(now()) @db.Timestamptz(3)
+  updated_at                 DateTime       @updatedAt @db.Timestamptz(3)
+  rel_uso_promocion_id_cupon UsoPromocion[] @relation("UsoPromocion_id_cupon")
+
+  @@index([id_promocion])
+  @@map("cupon")
+}
+
+model UsoPromocion {
+  id_uso_promocion   Int                @id @default(autoincrement())
+  id_pedido          Int
+  id_cliente         Int?
+  clave_idempotencia String             @unique @db.VarChar(100)
+  estado             EstadoUsoPromocion @default(RESERVADO)
+  vence_at           DateTime           @db.Timestamptz(3)
+  monto              Decimal            @db.Decimal(14, 2)
+  id_promocion       Int
+  ref_id_promocion   Promocion          @relation("UsoPromocion_id_promocion", fields: [id_promocion], references: [id_promocion], onDelete: Restrict, onUpdate: Cascade)
+  id_cupon           Int?
+  ref_id_cupon       Cupon?             @relation("UsoPromocion_id_cupon", fields: [id_cupon], references: [id_cupon], onDelete: Restrict, onUpdate: Cascade)
+  created_at         DateTime           @default(now()) @db.Timestamptz(3)
+  updated_at         DateTime           @updatedAt @db.Timestamptz(3)
+
+  @@index([id_cliente])
+  @@index([id_pedido])
+  @@index([estado, vence_at])
+  @@index([id_promocion])
+  @@index([id_cupon])
+  @@map("uso_promocion")
+}
+
+model ProgramaBeneficio {
+  id_programa_beneficio Int       @id @default(autoincrement())
+  codigo                String    @unique @db.VarChar(50)
+  nombre                String    @db.VarChar(150)
+  descripcion           String
+  condiciones           String
+  desde                 DateTime? @db.Timestamptz(3)
+  hasta                 DateTime? @db.Timestamptz(3)
+  activo                Boolean   @default(false)
+  created_at            DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at            DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@map("programa_beneficio")
+}
+
+model Aseguradora {
+  id_aseguradora                             Int                     @id @default(autoincrement())
+  nombre                                     String                  @unique @db.VarChar(150)
+  logo_clave                                 String?
+  contacto                                   String?
+  telefono                                   String?                 @db.VarChar(25)
+  sitio_web                                  String?
+  instrucciones_publicas                     String?
+  activa                                     Boolean                 @default(false)
+  created_at                                 DateTime                @default(now()) @db.Timestamptz(3)
+  updated_at                                 DateTime                @updatedAt @db.Timestamptz(3)
+  rel_convenio_seguro_publico_id_aseguradora ConvenioSeguroPublico[] @relation("ConvenioSeguroPublico_id_aseguradora")
+
+  @@map("aseguradora")
+}
+
+model ConvenioSeguroPublico {
+  id_convenio_seguro_publico      Int              @id @default(autoincrement())
+  nombre                          String           @db.VarChar(150)
+  condiciones                     String
+  requisitos                      String?
+  desde                           DateTime?        @db.Date
+  hasta                           DateTime?        @db.Date
+  activo                          Boolean          @default(false)
+  id_aseguradora                  Int
+  ref_id_aseguradora              Aseguradora      @relation("ConvenioSeguroPublico_id_aseguradora", fields: [id_aseguradora], references: [id_aseguradora], onDelete: Restrict, onUpdate: Cascade)
+  created_at                      DateTime         @default(now()) @db.Timestamptz(3)
+  updated_at                      DateTime         @updatedAt @db.Timestamptz(3)
+  rel_seguro_sucursal_id_convenio SeguroSucursal[] @relation("SeguroSucursal_id_convenio")
+
+  @@index([id_aseguradora])
+  @@map("convenio_seguro_publico")
+}
+
+model SeguroSucursal {
+  id_seguro_sucursal Int                   @id @default(autoincrement())
+  id_sucursal        Int
+  id_convenio        Int
+  ref_id_convenio    ConvenioSeguroPublico @relation("SeguroSucursal_id_convenio", fields: [id_convenio], references: [id_convenio_seguro_publico], onDelete: Restrict, onUpdate: Cascade)
+  created_at         DateTime              @default(now()) @db.Timestamptz(3)
+  updated_at         DateTime              @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_convenio, id_sucursal])
+  @@index([id_convenio])
+  @@map("seguro_sucursal")
+}
+
+model PaginaContenido {
+  id_pagina_contenido          Int               @id @default(autoincrement())
+  slug                         String            @unique @db.VarChar(150)
+  titulo                       String            @db.VarChar(200)
+  tipo                         TipoPagina
+  estado                       EstadoPublicacion @default(BORRADOR)
+  titulo_seo                   String?           @db.VarChar(200)
+  descripcion_seo              String?           @db.VarChar(350)
+  created_at                   DateTime          @default(now()) @db.Timestamptz(3)
+  updated_at                   DateTime          @updatedAt @db.Timestamptz(3)
+  rel_version_pagina_id_pagina VersionPagina[]   @relation("VersionPagina_id_pagina")
+
+  @@map("pagina_contenido")
+}
+
+model VersionPagina {
+  id_version_pagina Int             @id @default(autoincrement())
+  numero            Int
+  contenido         String
+  id_autor          Int
+  publicada_at      DateTime?       @db.Timestamptz(3)
+  id_pagina         Int
+  ref_id_pagina     PaginaContenido @relation("VersionPagina_id_pagina", fields: [id_pagina], references: [id_pagina_contenido], onDelete: Restrict, onUpdate: Cascade)
+  created_at        DateTime        @default(now()) @db.Timestamptz(3)
+  updated_at        DateTime        @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_pagina, numero])
+  @@index([id_pagina])
+  @@map("version_pagina")
+}
+
+model Banner {
+  id_banner         Int       @id @default(autoincrement())
+  titulo            String    @db.VarChar(150)
+  imagen_escritorio String
+  imagen_movil      String?
+  texto_alternativo String    @db.VarChar(250)
+  enlace            String?
+  ubicacion         String    @db.VarChar(60)
+  orden             Int       @default(0)
+  desde             DateTime? @db.Timestamptz(3)
+  hasta             DateTime? @db.Timestamptz(3)
+  activo            Boolean   @default(false)
+  created_at        DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at        DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@map("banner")
+}
+
+model PreguntaFrecuente {
+  id_pregunta_frecuente Int      @id @default(autoincrement())
+  categoria             String   @db.VarChar(80)
+  pregunta              String
+  respuesta             String
+  orden                 Int      @default(0)
+  activa                Boolean  @default(true)
+  created_at            DateTime @default(now()) @db.Timestamptz(3)
+  updated_at            DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("pregunta_frecuente")
+}
+
+model CanalContacto {
+  id_canal_contacto Int          @id @default(autoincrement())
+  tipo              TipoContacto
+  valor             String
+  horario_texto     String?
+  id_sucursal       Int?
+  visible           Boolean      @default(true)
+  created_at        DateTime     @default(now()) @db.Timestamptz(3)
+  updated_at        DateTime     @updatedAt @db.Timestamptz(3)
+
+  @@map("canal_contacto")
+}
+
+model AuditoriaEvento {
+  id_auditoria_evento Int      @id @default(autoincrement())
+  id_actor            Int?
+  actor_sistema       String?  @db.VarChar(100)
+  accion              String   @db.VarChar(100)
+  entidad             String   @db.VarChar(100)
+  referencia          String   @db.VarChar(100)
+  resultado           String   @db.VarChar(40)
+  correlacion         String   @db.VarChar(100)
+  cambios_sanitizados Json?
+  created_at          DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([entidad, referencia])
+  @@index([created_at])
+  @@map("auditoria_evento")
+}
+
+model OutboxEvento {
+  id_outbox_evento  Int       @id @default(autoincrement())
+  evento_id         String    @unique @default(uuid()) @db.Uuid
+  tipo              String    @db.VarChar(100)
+  agregado          String    @db.VarChar(100)
+  referencia        String    @db.VarChar(100)
+  version           Int
+  payload           Json
+  publicado_at      DateTime? @db.Timestamptz(3)
+  intentos          Int       @default(0)
+  siguiente_intento DateTime? @db.Timestamptz(3)
+  created_at        DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at        DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([publicado_at, siguiente_intento])
+  @@map("outbox_evento")
+}
+
+model InboxEvento {
+  id_inbox_evento Int       @id @default(autoincrement())
+  consumidor      String    @db.VarChar(100)
+  evento_id       String    @db.Uuid
+  procesado_at    DateTime? @db.Timestamptz(3)
+  resultado       String?   @db.VarChar(40)
+  created_at      DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at      DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([consumidor, evento_id])
+  @@map("inbox_evento")
+}
+
+model OperacionIdempotente {
+  id_operacion_idempotente Int      @id @default(autoincrement())
+  alcance                  String   @db.VarChar(100)
+  clave                    String   @db.VarChar(150)
+  hash_solicitud           String   @db.VarChar(128)
+  estado                   String   @db.VarChar(40)
+  referencia_resultado     String?  @db.VarChar(100)
+  vence_at                 DateTime @db.Timestamptz(3)
+  created_at               DateTime @default(now()) @db.Timestamptz(3)
+  updated_at               DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([alcance, clave])
+  @@index([vence_at])
+  @@map("operacion_idempotente")
+}
+
+model Notificacion {
+  id_notificacion                          Int                   @id @default(autoincrement())
+  id_usuario                               Int
+  evento                                   String                @db.VarChar(100)
+  titulo                                   String                @db.VarChar(200)
+  mensaje                                  String
+  url_interna                              String?
+  canal                                    String                @db.VarChar(30)
+  leida_at                                 DateTime?             @db.Timestamptz(3)
+  clave_idempotencia                       String                @unique @db.VarChar(120)
+  created_at                               DateTime              @default(now()) @db.Timestamptz(3)
+  updated_at                               DateTime              @updatedAt @db.Timestamptz(3)
+  rel_entrega_notificacion_id_notificacion EntregaNotificacion[] @relation("EntregaNotificacion_id_notificacion")
+
+  @@index([id_usuario, leida_at, created_at])
+  @@map("notificacion")
+}
+
+model EntregaNotificacion {
+  id_entrega_notificacion Int          @id @default(autoincrement())
+  proveedor               String       @db.VarChar(60)
+  referencia_proveedor    String?      @db.VarChar(150)
+  estado                  String       @db.VarChar(30)
+  intento                 Int
+  error_codigo            String?      @db.VarChar(100)
+  siguiente_intento       DateTime?    @db.Timestamptz(3)
+  id_notificacion         Int
+  ref_id_notificacion     Notificacion @relation("EntregaNotificacion_id_notificacion", fields: [id_notificacion], references: [id_notificacion], onDelete: Restrict, onUpdate: Cascade)
+  created_at              DateTime     @default(now()) @db.Timestamptz(3)
+  updated_at              DateTime     @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_notificacion, intento])
+  @@index([id_notificacion])
+  @@map("entrega_notificacion")
+}

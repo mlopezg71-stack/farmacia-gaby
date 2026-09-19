@@ -1,0 +1,50 @@
+-- Complemento de la migración INICIAL generada por Prisma para pedidos.
+-- No ejecutar solo: las tablas deben crearse antes en esa misma migración.
+-- Prisma no representa estos CHECK/índices funcionales/parciales en schema.prisma.
+
+ALTER TABLE "carrito" ADD CONSTRAINT "ck_carrito_1" CHECK ((id_cliente IS NOT NULL) <> (token_invitado_hash IS NOT NULL));
+ALTER TABLE "item_carrito" ADD CONSTRAINT "ck_item_carrito_1" CHECK (cantidad > 0);
+ALTER TABLE "item_carrito" ADD CONSTRAINT "ck_item_carrito_2" CHECK (precio_observado IS NULL OR precio_observado >= 0);
+ALTER TABLE "pedido" ADD CONSTRAINT "ck_pedido_1" CHECK (subtotal >= 0);
+ALTER TABLE "pedido" ADD CONSTRAINT "ck_pedido_2" CHECK (descuento BETWEEN 0 AND subtotal);
+ALTER TABLE "pedido" ADD CONSTRAINT "ck_pedido_3" CHECK (impuesto >= 0);
+ALTER TABLE "pedido" ADD CONSTRAINT "ck_pedido_4" CHECK (envio >= 0);
+ALTER TABLE "pedido" ADD CONSTRAINT "ck_pedido_5" CHECK (total = subtotal - descuento + impuesto + envio);
+ALTER TABLE "pedido_contacto" ADD CONSTRAINT "ck_pedido_contacto_1" CHECK (latitud IS NULL OR latitud BETWEEN -90 AND 90);
+ALTER TABLE "pedido_contacto" ADD CONSTRAINT "ck_pedido_contacto_2" CHECK (longitud IS NULL OR longitud BETWEEN -180 AND 180);
+ALTER TABLE "detalle_pedido" ADD CONSTRAINT "ck_detalle_pedido_1" CHECK (cantidad > 0);
+ALTER TABLE "detalle_pedido" ADD CONSTRAINT "ck_detalle_pedido_2" CHECK (unidades_base > 0);
+ALTER TABLE "detalle_pedido" ADD CONSTRAINT "ck_detalle_pedido_3" CHECK (precio_unitario >= 0);
+ALTER TABLE "detalle_pedido" ADD CONSTRAINT "ck_detalle_pedido_4" CHECK (descuento >= 0);
+ALTER TABLE "detalle_pedido" ADD CONSTRAINT "ck_detalle_pedido_5" CHECK (base_imponible >= 0);
+ALTER TABLE "detalle_pedido" ADD CONSTRAINT "ck_detalle_pedido_6" CHECK (tasa_impuesto BETWEEN 0 AND 1);
+ALTER TABLE "detalle_pedido" ADD CONSTRAINT "ck_detalle_pedido_7" CHECK (impuesto >= 0);
+ALTER TABLE "detalle_pedido" ADD CONSTRAINT "ck_detalle_pedido_8" CHECK (total_linea = base_imponible + impuesto);
+ALTER TABLE "detalle_pedido" ADD CONSTRAINT "ck_detalle_pedido_9" CHECK (cantidad_cancelada >= 0 AND cantidad_atendida >= 0 AND cantidad_cancelada + cantidad_atendida <= cantidad);
+ALTER TABLE "pedido_reserva" ADD CONSTRAINT "ck_pedido_reserva_1" CHECK (cantidad > 0);
+ALTER TABLE "aplicacion_promocion" ADD CONSTRAINT "ck_aplicacion_promocion_1" CHECK (monto >= 0);
+ALTER TABLE "cotizacion" ADD CONSTRAINT "ck_cotizacion_1" CHECK (total >= 0);
+ALTER TABLE "detalle_cotizacion" ADD CONSTRAINT "ck_detalle_cotizacion_1" CHECK (cantidad > 0);
+ALTER TABLE "detalle_cotizacion" ADD CONSTRAINT "ck_detalle_cotizacion_2" CHECK (precio_unitario >= 0);
+ALTER TABLE "detalle_cotizacion" ADD CONSTRAINT "ck_detalle_cotizacion_3" CHECK (descuento >= 0);
+ALTER TABLE "detalle_cotizacion" ADD CONSTRAINT "ck_detalle_cotizacion_4" CHECK (impuesto >= 0);
+ALTER TABLE "detalle_cotizacion" ADD CONSTRAINT "ck_detalle_cotizacion_5" CHECK (total >= 0);
+ALTER TABLE "receta" ADD CONSTRAINT "ck_receta_1" CHECK (vigente_hasta IS NULL OR fecha_emision IS NULL OR vigente_hasta >= fecha_emision);
+ALTER TABLE "receta_archivo" ADD CONSTRAINT "ck_receta_archivo_1" CHECK (tamano_bytes > 0);
+ALTER TABLE "receta_linea" ADD CONSTRAINT "ck_receta_linea_1" CHECK (cantidad_autorizada IS NULL OR cantidad_autorizada > 0);
+ALTER TABLE "receta_aplicacion" ADD CONSTRAINT "ck_receta_aplicacion_1" CHECK (cantidad > 0);
+ALTER TABLE "tarifa_entrega" ADD CONSTRAINT "ck_tarifa_entrega_1" CHECK (importe >= 0);
+ALTER TABLE "tarifa_entrega" ADD CONSTRAINT "ck_tarifa_entrega_2" CHECK (minimo_compra >= 0);
+ALTER TABLE "tarifa_entrega" ADD CONSTRAINT "ck_tarifa_entrega_3" CHECK (umbral_gratis IS NULL OR umbral_gratis >= 0);
+ALTER TABLE "tarifa_entrega" ADD CONSTRAINT "ck_tarifa_entrega_4" CHECK (plazo_minutos IS NULL OR plazo_minutos > 0);
+ALTER TABLE "tarifa_entrega" ADD CONSTRAINT "ck_tarifa_entrega_5" CHECK (hasta IS NULL OR hasta > desde);
+ALTER TABLE "franja_entrega" ADD CONSTRAINT "ck_franja_entrega_1" CHECK (fin > inicio);
+ALTER TABLE "franja_entrega" ADD CONSTRAINT "ck_franja_entrega_2" CHECK (capacidad > 0);
+ALTER TABLE "envio" ADD CONSTRAINT "ck_envio_1" CHECK (costo >= 0);
+ALTER TABLE "envio_detalle" ADD CONSTRAINT "ck_envio_detalle_1" CHECK (cantidad > 0);
+ALTER TABLE "detalle_devolucion" ADD CONSTRAINT "ck_detalle_devolucion_1" CHECK (cantidad > 0);
+ALTER TABLE "resena_producto" ADD CONSTRAINT "ck_resena_producto_1" CHECK (calificacion BETWEEN 1 AND 5);
+ALTER TABLE "movimiento_puntos" ADD CONSTRAINT "ck_movimiento_puntos_1" CHECK (puntos <> 0);
+ALTER TABLE "entrega_notificacion" ADD CONSTRAINT "ck_entrega_notificacion_1" CHECK (intento > 0);
+CREATE UNIQUE INDEX "uq_carrito_activo_cliente" ON "carrito" (id_cliente) WHERE estado = 'ACTIVO' AND id_cliente IS NOT NULL;
+CREATE UNIQUE INDEX "uq_carrito_activo_invitado" ON "carrito" (token_invitado_hash) WHERE estado = 'ACTIVO' AND token_invitado_hash IS NOT NULL;

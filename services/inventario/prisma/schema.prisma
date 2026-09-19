@@ -1,0 +1,605 @@
+// Farmacia Gaby V05 — inventario. Prisma 7.8.0 / PostgreSQL.
+// Diseño nuevo; no aplicar como reemplazo de MediCore sobre una base existente.
+// Los IDs de otros servicios son referencias escalares, no relaciones entre bases.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EstadoRegistro {
+  ACTIVO
+  INACTIVO
+}
+
+enum TipoUbicacion {
+  BODEGA
+  VENTA
+  CUARENTENA
+  TRANSITO
+}
+
+enum EstadoLote {
+  DISPONIBLE
+  BLOQUEADO
+  RETIRADO
+}
+
+enum TipoMovimiento {
+  RECEPCION
+  VENTA
+  APERTURA_ENTRADA
+  APERTURA_SALIDA
+  AJUSTE_ENTRADA
+  AJUSTE_SALIDA
+  TRASLADO_ENTRADA
+  TRASLADO_SALIDA
+  DEVOLUCION
+  BAJA
+}
+
+enum EstadoReserva {
+  ACTIVA
+  CONFIRMADA
+  CONSUMIDA
+  LIBERADA
+  VENCIDA
+}
+
+enum EstadoDocumento {
+  BORRADOR
+  CONFIRMADO
+  PARCIAL
+  COMPLETADO
+  CANCELADO
+}
+
+enum EstadoTraslado {
+  BORRADOR
+  DESPACHADO
+  PARCIAL
+  RECIBIDO
+  CANCELADO
+}
+
+model Sucursal {
+  id_sucursal                          Int                   @id @default(autoincrement())
+  codigo                               String                @unique @db.VarChar(30)
+  nombre                               String                @db.VarChar(150)
+  direccion                            String                @db.VarChar(500)
+  departamento                         String                @db.VarChar(100)
+  municipio                            String                @db.VarChar(100)
+  zona                                 String?               @db.VarChar(20)
+  latitud                              Decimal?              @db.Decimal(10, 7)
+  longitud                             Decimal?              @db.Decimal(10, 7)
+  telefono                             String?               @db.VarChar(25)
+  correo                               String?               @db.VarChar(254)
+  zona_horaria                         String                @default("America/Guatemala") @db.VarChar(80)
+  permite_retiro                       Boolean               @default(true)
+  permite_domicilio                    Boolean               @default(false)
+  estado                               EstadoRegistro        @default(ACTIVO)
+  created_at                           DateTime              @default(now()) @db.Timestamptz(3)
+  updated_at                           DateTime              @updatedAt @db.Timestamptz(3)
+  rel_horario_sucursal_id_sucursal     HorarioSucursal[]     @relation("HorarioSucursal_id_sucursal")
+  rel_excepcion_horario_id_sucursal    ExcepcionHorario[]    @relation("ExcepcionHorario_id_sucursal")
+  rel_ubicacion_inventario_id_sucursal UbicacionInventario[] @relation("UbicacionInventario_id_sucursal")
+  rel_reserva_inventario_id_sucursal   ReservaInventario[]   @relation("ReservaInventario_id_sucursal")
+  rel_compra_id_sucursal               Compra[]              @relation("Compra_id_sucursal")
+
+  @@map("sucursal")
+}
+
+model HorarioSucursal {
+  id_horario_sucursal  Int      @id @default(autoincrement())
+  dia_semana           Int
+  apertura_minuto      Int
+  cierre_minuto        Int
+  cierra_dia_siguiente Boolean  @default(false)
+  id_sucursal          Int
+  ref_id_sucursal      Sucursal @relation("HorarioSucursal_id_sucursal", fields: [id_sucursal], references: [id_sucursal], onDelete: Restrict, onUpdate: Cascade)
+  created_at           DateTime @default(now()) @db.Timestamptz(3)
+  updated_at           DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_sucursal, dia_semana, apertura_minuto])
+  @@index([id_sucursal])
+  @@map("horario_sucursal")
+}
+
+model ExcepcionHorario {
+  id_excepcion_horario                 Int                  @id @default(autoincrement())
+  fecha                                DateTime             @db.Date
+  cerrada                              Boolean              @default(false)
+  motivo                               String?
+  id_sucursal                          Int
+  ref_id_sucursal                      Sucursal             @relation("ExcepcionHorario_id_sucursal", fields: [id_sucursal], references: [id_sucursal], onDelete: Restrict, onUpdate: Cascade)
+  created_at                           DateTime             @default(now()) @db.Timestamptz(3)
+  updated_at                           DateTime             @updatedAt @db.Timestamptz(3)
+  rel_intervalo_excepcion_id_excepcion IntervaloExcepcion[] @relation("IntervaloExcepcion_id_excepcion")
+
+  @@unique([id_sucursal, fecha])
+  @@index([id_sucursal])
+  @@map("excepcion_horario")
+}
+
+model IntervaloExcepcion {
+  id_intervalo_excepcion Int              @id @default(autoincrement())
+  apertura_minuto        Int
+  cierre_minuto          Int
+  cierra_dia_siguiente   Boolean          @default(false)
+  id_excepcion           Int
+  ref_id_excepcion       ExcepcionHorario @relation("IntervaloExcepcion_id_excepcion", fields: [id_excepcion], references: [id_excepcion_horario], onDelete: Restrict, onUpdate: Cascade)
+  created_at             DateTime         @default(now()) @db.Timestamptz(3)
+  updated_at             DateTime         @updatedAt @db.Timestamptz(3)
+
+  @@index([id_excepcion])
+  @@map("intervalo_excepcion")
+}
+
+model UbicacionInventario {
+  id_ubicacion_inventario            Int                @id @default(autoincrement())
+  codigo                             String             @db.VarChar(40)
+  nombre                             String             @db.VarChar(100)
+  tipo                               TipoUbicacion
+  activa                             Boolean            @default(true)
+  id_sucursal                        Int
+  ref_id_sucursal                    Sucursal           @relation("UbicacionInventario_id_sucursal", fields: [id_sucursal], references: [id_sucursal], onDelete: Restrict, onUpdate: Cascade)
+  created_at                         DateTime           @default(now()) @db.Timestamptz(3)
+  updated_at                         DateTime           @updatedAt @db.Timestamptz(3)
+  rel_existencia_id_ubicacion        Existencia[]       @relation("Existencia_id_ubicacion")
+  rel_traslado_id_origen             Traslado[]         @relation("Traslado_id_origen")
+  rel_traslado_id_destino            Traslado[]         @relation("Traslado_id_destino")
+  rel_conteo_inventario_id_ubicacion ConteoInventario[] @relation("ConteoInventario_id_ubicacion")
+
+  @@unique([id_sucursal, codigo])
+  @@index([id_sucursal])
+  @@map("ubicacion_inventario")
+}
+
+model Lote {
+  id_lote                      Int               @id @default(autoincrement())
+  /// Catálogo.Producto
+  id_producto                  Int
+  numero                       String            @db.VarChar(100)
+  fabricante_referencia        String            @db.VarChar(150)
+  fecha_fabricacion            DateTime?         @db.Date
+  fecha_vencimiento            DateTime?         @db.Date
+  estado                       EstadoLote        @default(DISPONIBLE)
+  created_at                   DateTime          @default(now()) @db.Timestamptz(3)
+  updated_at                   DateTime          @updatedAt @db.Timestamptz(3)
+  rel_existencia_id_lote       Existencia[]      @relation("Existencia_id_lote")
+  rel_detalle_traslado_id_lote DetalleTraslado[] @relation("DetalleTraslado_id_lote")
+
+  @@unique([id_producto, numero, fabricante_referencia])
+  @@index([estado, fecha_vencimiento])
+  @@map("lote")
+}
+
+model Existencia {
+  id_existencia                                Int                    @id @default(autoincrement())
+  /// Catálogo.PresentacionProducto. Cuenta formatos físicos, NO unidades equivalentes duplicadas.
+  id_presentacion                              Int
+  cantidad_fisica                              Int                    @default(0)
+  cantidad_reservada                           Int                    @default(0)
+  minimo                                       Int                    @default(0)
+  maximo                                       Int?
+  version                                      Int                    @default(1)
+  id_ubicacion                                 Int
+  ref_id_ubicacion                             UbicacionInventario    @relation("Existencia_id_ubicacion", fields: [id_ubicacion], references: [id_ubicacion_inventario], onDelete: Restrict, onUpdate: Cascade)
+  id_lote                                      Int
+  ref_id_lote                                  Lote                   @relation("Existencia_id_lote", fields: [id_lote], references: [id_lote], onDelete: Restrict, onUpdate: Cascade)
+  created_at                                   DateTime               @default(now()) @db.Timestamptz(3)
+  updated_at                                   DateTime               @updatedAt @db.Timestamptz(3)
+  rel_movimiento_inventario_id_existencia      MovimientoInventario[] @relation("MovimientoInventario_id_existencia")
+  rel_reserva_detalle_id_existencia            ReservaDetalle[]       @relation("ReservaDetalle_id_existencia")
+  rel_apertura_empaque_id_origen               AperturaEmpaque[]      @relation("AperturaEmpaque_id_origen")
+  rel_apertura_empaque_id_destino              AperturaEmpaque[]      @relation("AperturaEmpaque_id_destino")
+  rel_detalle_recepcion_id_existencia          DetalleRecepcion[]     @relation("DetalleRecepcion_id_existencia")
+  rel_recepcion_traslado_id_existencia_destino RecepcionTraslado[]    @relation("RecepcionTraslado_id_existencia_destino")
+  rel_detalle_conteo_id_existencia             DetalleConteo[]        @relation("DetalleConteo_id_existencia")
+
+  @@unique([id_ubicacion, id_lote, id_presentacion])
+  @@index([id_presentacion])
+  @@index([id_ubicacion])
+  @@index([id_lote])
+  @@map("existencia")
+}
+
+model MovimientoInventario {
+  id_movimiento_inventario Int            @id @default(autoincrement())
+  tipo                     TipoMovimiento
+  /// Variación firmada del stock físico; las reservas tienen su propio historial.
+  delta                    Int
+  saldo_resultante         Int
+  id_actor                 Int
+  tipo_documento           String         @db.VarChar(60)
+  referencia_documento     String         @db.VarChar(100)
+  motivo                   String?
+  clave_idempotencia       String         @unique @db.VarChar(150)
+  fecha                    DateTime       @default(now()) @db.Timestamptz(3)
+  id_existencia            Int
+  ref_id_existencia        Existencia     @relation("MovimientoInventario_id_existencia", fields: [id_existencia], references: [id_existencia], onDelete: Restrict, onUpdate: Cascade)
+  created_at               DateTime       @default(now()) @db.Timestamptz(3)
+
+  @@index([fecha])
+  @@index([tipo_documento, referencia_documento])
+  @@index([id_existencia])
+  @@map("movimiento_inventario")
+}
+
+model ReservaInventario {
+  id_reserva_inventario          Int              @id @default(autoincrement())
+  id_pedido                      Int
+  clave_idempotencia             String           @unique @db.VarChar(100)
+  estado                         EstadoReserva    @default(ACTIVA)
+  vence_at                       DateTime         @db.Timestamptz(3)
+  confirmada_at                  DateTime?        @db.Timestamptz(3)
+  consumida_at                   DateTime?        @db.Timestamptz(3)
+  liberada_at                    DateTime?        @db.Timestamptz(3)
+  version                        Int              @default(1)
+  id_sucursal                    Int
+  ref_id_sucursal                Sucursal         @relation("ReservaInventario_id_sucursal", fields: [id_sucursal], references: [id_sucursal], onDelete: Restrict, onUpdate: Cascade)
+  created_at                     DateTime         @default(now()) @db.Timestamptz(3)
+  updated_at                     DateTime         @updatedAt @db.Timestamptz(3)
+  rel_reserva_detalle_id_reserva ReservaDetalle[] @relation("ReservaDetalle_id_reserva")
+  rel_evento_reserva_id_reserva  EventoReserva[]  @relation("EventoReserva_id_reserva")
+
+  @@index([id_pedido])
+  @@index([estado, vence_at])
+  @@index([id_sucursal])
+  @@map("reserva_inventario")
+}
+
+model ReservaDetalle {
+  id_reserva_detalle Int               @id @default(autoincrement())
+  id_detalle_pedido  Int
+  cantidad           Int
+  id_reserva         Int
+  ref_id_reserva     ReservaInventario @relation("ReservaDetalle_id_reserva", fields: [id_reserva], references: [id_reserva_inventario], onDelete: Restrict, onUpdate: Cascade)
+  id_existencia      Int
+  ref_id_existencia  Existencia        @relation("ReservaDetalle_id_existencia", fields: [id_existencia], references: [id_existencia], onDelete: Restrict, onUpdate: Cascade)
+  created_at         DateTime          @default(now()) @db.Timestamptz(3)
+  updated_at         DateTime          @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_reserva, id_existencia, id_detalle_pedido])
+  @@index([id_reserva])
+  @@index([id_existencia])
+  @@map("reserva_detalle")
+}
+
+model EventoReserva {
+  id_evento_reserva Int               @id @default(autoincrement())
+  estado            EstadoReserva
+  motivo            String?
+  id_actor          Int?
+  clave_evento      String            @unique @db.VarChar(120)
+  id_reserva        Int
+  ref_id_reserva    ReservaInventario @relation("EventoReserva_id_reserva", fields: [id_reserva], references: [id_reserva_inventario], onDelete: Restrict, onUpdate: Cascade)
+  created_at        DateTime          @default(now()) @db.Timestamptz(3)
+
+  @@index([id_reserva])
+  @@map("evento_reserva")
+}
+
+model AperturaEmpaque {
+  id_apertura_empaque Int        @id @default(autoincrement())
+  id_actor            Int
+  /// Identidad y versión de conversión aprobada en Catálogo.
+  id_conversion       Int
+  version_conversion  Int
+  clave_idempotencia  String     @unique @db.VarChar(100)
+  cantidad_origen     Int
+  cantidad_destino    Int
+  factor_destino      Int
+  id_origen           Int
+  ref_id_origen       Existencia @relation("AperturaEmpaque_id_origen", fields: [id_origen], references: [id_existencia], onDelete: Restrict, onUpdate: Cascade)
+  id_destino          Int
+  ref_id_destino      Existencia @relation("AperturaEmpaque_id_destino", fields: [id_destino], references: [id_existencia], onDelete: Restrict, onUpdate: Cascade)
+  created_at          DateTime   @default(now()) @db.Timestamptz(3)
+
+  @@index([id_origen])
+  @@index([id_destino])
+  @@map("apertura_empaque")
+}
+
+model Proveedor {
+  id_proveedor                            Int                     @id @default(autoincrement())
+  razon_social                            String                  @db.VarChar(200)
+  nombre_comercial                        String?                 @db.VarChar(150)
+  identificacion_fiscal                   String?                 @unique @db.VarChar(30)
+  contacto                                String?                 @db.VarChar(150)
+  telefono                                String?                 @db.VarChar(25)
+  correo                                  String?                 @db.VarChar(254)
+  direccion                               String?
+  estado                                  EstadoRegistro          @default(ACTIVO)
+  created_at                              DateTime                @default(now()) @db.Timestamptz(3)
+  updated_at                              DateTime                @updatedAt @db.Timestamptz(3)
+  rel_proveedor_presentacion_id_proveedor ProveedorPresentacion[] @relation("ProveedorPresentacion_id_proveedor")
+  rel_compra_id_proveedor                 Compra[]                @relation("Compra_id_proveedor")
+
+  @@map("proveedor")
+}
+
+model ProveedorPresentacion {
+  id_proveedor_presentacion Int       @id @default(autoincrement())
+  id_presentacion           Int
+  codigo_proveedor          String?   @db.VarChar(60)
+  costo_referencia          Decimal?  @db.Decimal(14, 2)
+  plazo_dias                Int?
+  id_proveedor              Int
+  ref_id_proveedor          Proveedor @relation("ProveedorPresentacion_id_proveedor", fields: [id_proveedor], references: [id_proveedor], onDelete: Restrict, onUpdate: Cascade)
+  created_at                DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at                DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_proveedor, id_presentacion])
+  @@index([id_proveedor])
+  @@map("proveedor_presentacion")
+}
+
+model Compra {
+  id_compra                    Int             @id @default(autoincrement())
+  numero                       String          @unique @db.VarChar(60)
+  documento_proveedor          String?         @db.VarChar(100)
+  fecha                        DateTime        @default(now()) @db.Timestamptz(3)
+  estado                       EstadoDocumento @default(BORRADOR)
+  moneda                       String          @default("GTQ") @db.Char(3)
+  subtotal                     Decimal         @db.Decimal(14, 2)
+  descuento                    Decimal         @default(0) @db.Decimal(14, 2)
+  impuesto                     Decimal         @default(0) @db.Decimal(14, 2)
+  total                        Decimal         @db.Decimal(14, 2)
+  id_actor                     Int
+  id_proveedor                 Int
+  ref_id_proveedor             Proveedor       @relation("Compra_id_proveedor", fields: [id_proveedor], references: [id_proveedor], onDelete: Restrict, onUpdate: Cascade)
+  id_sucursal                  Int
+  ref_id_sucursal              Sucursal        @relation("Compra_id_sucursal", fields: [id_sucursal], references: [id_sucursal], onDelete: Restrict, onUpdate: Cascade)
+  created_at                   DateTime        @default(now()) @db.Timestamptz(3)
+  updated_at                   DateTime        @updatedAt @db.Timestamptz(3)
+  rel_detalle_compra_id_compra DetalleCompra[] @relation("DetalleCompra_id_compra")
+  rel_recepcion_id_compra      Recepcion[]     @relation("Recepcion_id_compra")
+
+  @@index([id_proveedor])
+  @@index([id_sucursal])
+  @@map("compra")
+}
+
+model DetalleCompra {
+  id_detalle_compra                       Int                @id @default(autoincrement())
+  id_presentacion                         Int
+  cantidad                                Int
+  costo_unitario                          Decimal            @db.Decimal(14, 2)
+  descuento                               Decimal            @default(0) @db.Decimal(14, 2)
+  impuesto                                Decimal            @default(0) @db.Decimal(14, 2)
+  id_compra                               Int
+  ref_id_compra                           Compra             @relation("DetalleCompra_id_compra", fields: [id_compra], references: [id_compra], onDelete: Restrict, onUpdate: Cascade)
+  created_at                              DateTime           @default(now()) @db.Timestamptz(3)
+  updated_at                              DateTime           @updatedAt @db.Timestamptz(3)
+  rel_detalle_recepcion_id_detalle_compra DetalleRecepcion[] @relation("DetalleRecepcion_id_detalle_compra")
+
+  @@index([id_compra])
+  @@map("detalle_compra")
+}
+
+model Recepcion {
+  id_recepcion                       Int                @id @default(autoincrement())
+  recibido_por                       Int
+  referencia                         String?            @db.VarChar(100)
+  clave_idempotencia                 String             @unique @db.VarChar(100)
+  fecha                              DateTime           @default(now()) @db.Timestamptz(3)
+  id_compra                          Int
+  ref_id_compra                      Compra             @relation("Recepcion_id_compra", fields: [id_compra], references: [id_compra], onDelete: Restrict, onUpdate: Cascade)
+  created_at                         DateTime           @default(now()) @db.Timestamptz(3)
+  updated_at                         DateTime           @updatedAt @db.Timestamptz(3)
+  rel_detalle_recepcion_id_recepcion DetalleRecepcion[] @relation("DetalleRecepcion_id_recepcion")
+
+  @@index([id_compra])
+  @@map("recepcion")
+}
+
+model DetalleRecepcion {
+  id_detalle_recepcion  Int           @id @default(autoincrement())
+  cantidad              Int
+  id_recepcion          Int
+  ref_id_recepcion      Recepcion     @relation("DetalleRecepcion_id_recepcion", fields: [id_recepcion], references: [id_recepcion], onDelete: Restrict, onUpdate: Cascade)
+  id_detalle_compra     Int
+  ref_id_detalle_compra DetalleCompra @relation("DetalleRecepcion_id_detalle_compra", fields: [id_detalle_compra], references: [id_detalle_compra], onDelete: Restrict, onUpdate: Cascade)
+  id_existencia         Int
+  ref_id_existencia     Existencia    @relation("DetalleRecepcion_id_existencia", fields: [id_existencia], references: [id_existencia], onDelete: Restrict, onUpdate: Cascade)
+  created_at            DateTime      @default(now()) @db.Timestamptz(3)
+  updated_at            DateTime      @updatedAt @db.Timestamptz(3)
+
+  @@index([id_recepcion])
+  @@index([id_detalle_compra])
+  @@index([id_existencia])
+  @@map("detalle_recepcion")
+}
+
+model Traslado {
+  id_traslado                      Int                 @id @default(autoincrement())
+  numero                           String              @unique @db.VarChar(60)
+  estado                           EstadoTraslado      @default(BORRADOR)
+  despachado_at                    DateTime?           @db.Timestamptz(3)
+  recibido_at                      DateTime?           @db.Timestamptz(3)
+  id_actor                         Int
+  id_origen                        Int
+  ref_id_origen                    UbicacionInventario @relation("Traslado_id_origen", fields: [id_origen], references: [id_ubicacion_inventario], onDelete: Restrict, onUpdate: Cascade)
+  id_destino                       Int
+  ref_id_destino                   UbicacionInventario @relation("Traslado_id_destino", fields: [id_destino], references: [id_ubicacion_inventario], onDelete: Restrict, onUpdate: Cascade)
+  created_at                       DateTime            @default(now()) @db.Timestamptz(3)
+  updated_at                       DateTime            @updatedAt @db.Timestamptz(3)
+  rel_detalle_traslado_id_traslado DetalleTraslado[]   @relation("DetalleTraslado_id_traslado")
+
+  @@index([id_origen])
+  @@index([id_destino])
+  @@map("traslado")
+}
+
+model DetalleTraslado {
+  id_detalle_traslado               Int                 @id @default(autoincrement())
+  id_presentacion                   Int
+  cantidad_enviada                  Int
+  cantidad_recibida                 Int                 @default(0)
+  id_traslado                       Int
+  ref_id_traslado                   Traslado            @relation("DetalleTraslado_id_traslado", fields: [id_traslado], references: [id_traslado], onDelete: Restrict, onUpdate: Cascade)
+  id_lote                           Int
+  ref_id_lote                       Lote                @relation("DetalleTraslado_id_lote", fields: [id_lote], references: [id_lote], onDelete: Restrict, onUpdate: Cascade)
+  created_at                        DateTime            @default(now()) @db.Timestamptz(3)
+  updated_at                        DateTime            @updatedAt @db.Timestamptz(3)
+  rel_recepcion_traslado_id_detalle RecepcionTraslado[] @relation("RecepcionTraslado_id_detalle")
+
+  @@index([id_traslado])
+  @@index([id_lote])
+  @@map("detalle_traslado")
+}
+
+model RecepcionTraslado {
+  id_recepcion_traslado     Int             @id @default(autoincrement())
+  cantidad                  Int
+  recibido_por              Int
+  clave_idempotencia        String          @unique @db.VarChar(100)
+  id_detalle                Int
+  ref_id_detalle            DetalleTraslado @relation("RecepcionTraslado_id_detalle", fields: [id_detalle], references: [id_detalle_traslado], onDelete: Restrict, onUpdate: Cascade)
+  id_existencia_destino     Int
+  ref_id_existencia_destino Existencia      @relation("RecepcionTraslado_id_existencia_destino", fields: [id_existencia_destino], references: [id_existencia], onDelete: Restrict, onUpdate: Cascade)
+  created_at                DateTime        @default(now()) @db.Timestamptz(3)
+
+  @@index([id_detalle])
+  @@index([id_existencia_destino])
+  @@map("recepcion_traslado")
+}
+
+model ConteoInventario {
+  id_conteo_inventario         Int                 @id @default(autoincrement())
+  estado                       EstadoDocumento     @default(BORRADOR)
+  responsable                  Int
+  aprobado_por                 Int?
+  aprobado_at                  DateTime?           @db.Timestamptz(3)
+  id_ubicacion                 Int
+  ref_id_ubicacion             UbicacionInventario @relation("ConteoInventario_id_ubicacion", fields: [id_ubicacion], references: [id_ubicacion_inventario], onDelete: Restrict, onUpdate: Cascade)
+  created_at                   DateTime            @default(now()) @db.Timestamptz(3)
+  updated_at                   DateTime            @updatedAt @db.Timestamptz(3)
+  rel_detalle_conteo_id_conteo DetalleConteo[]     @relation("DetalleConteo_id_conteo")
+
+  @@index([id_ubicacion])
+  @@map("conteo_inventario")
+}
+
+model DetalleConteo {
+  id_detalle_conteo  Int              @id @default(autoincrement())
+  cantidad_sistema   Int
+  cantidad_contada   Int
+  version_existencia Int
+  motivo             String?
+  id_conteo          Int
+  ref_id_conteo      ConteoInventario @relation("DetalleConteo_id_conteo", fields: [id_conteo], references: [id_conteo_inventario], onDelete: Restrict, onUpdate: Cascade)
+  id_existencia      Int
+  ref_id_existencia  Existencia       @relation("DetalleConteo_id_existencia", fields: [id_existencia], references: [id_existencia], onDelete: Restrict, onUpdate: Cascade)
+  created_at         DateTime         @default(now()) @db.Timestamptz(3)
+  updated_at         DateTime         @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_conteo, id_existencia])
+  @@index([id_conteo])
+  @@index([id_existencia])
+  @@map("detalle_conteo")
+}
+
+model AuditoriaEvento {
+  id_auditoria_evento Int      @id @default(autoincrement())
+  id_actor            Int?
+  actor_sistema       String?  @db.VarChar(100)
+  accion              String   @db.VarChar(100)
+  entidad             String   @db.VarChar(100)
+  referencia          String   @db.VarChar(100)
+  resultado           String   @db.VarChar(40)
+  correlacion         String   @db.VarChar(100)
+  cambios_sanitizados Json?
+  created_at          DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([entidad, referencia])
+  @@index([created_at])
+  @@map("auditoria_evento")
+}
+
+model OutboxEvento {
+  id_outbox_evento  Int       @id @default(autoincrement())
+  evento_id         String    @unique @default(uuid()) @db.Uuid
+  tipo              String    @db.VarChar(100)
+  agregado          String    @db.VarChar(100)
+  referencia        String    @db.VarChar(100)
+  version           Int
+  payload           Json
+  publicado_at      DateTime? @db.Timestamptz(3)
+  intentos          Int       @default(0)
+  siguiente_intento DateTime? @db.Timestamptz(3)
+  created_at        DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at        DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([publicado_at, siguiente_intento])
+  @@map("outbox_evento")
+}
+
+model InboxEvento {
+  id_inbox_evento Int       @id @default(autoincrement())
+  consumidor      String    @db.VarChar(100)
+  evento_id       String    @db.Uuid
+  procesado_at    DateTime? @db.Timestamptz(3)
+  resultado       String?   @db.VarChar(40)
+  created_at      DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at      DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([consumidor, evento_id])
+  @@map("inbox_evento")
+}
+
+model OperacionIdempotente {
+  id_operacion_idempotente Int      @id @default(autoincrement())
+  alcance                  String   @db.VarChar(100)
+  clave                    String   @db.VarChar(150)
+  hash_solicitud           String   @db.VarChar(128)
+  estado                   String   @db.VarChar(40)
+  referencia_resultado     String?  @db.VarChar(100)
+  vence_at                 DateTime @db.Timestamptz(3)
+  created_at               DateTime @default(now()) @db.Timestamptz(3)
+  updated_at               DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([alcance, clave])
+  @@index([vence_at])
+  @@map("operacion_idempotente")
+}
+
+model Notificacion {
+  id_notificacion                          Int                   @id @default(autoincrement())
+  id_usuario                               Int
+  evento                                   String                @db.VarChar(100)
+  titulo                                   String                @db.VarChar(200)
+  mensaje                                  String
+  url_interna                              String?
+  canal                                    String                @db.VarChar(30)
+  leida_at                                 DateTime?             @db.Timestamptz(3)
+  clave_idempotencia                       String                @unique @db.VarChar(120)
+  created_at                               DateTime              @default(now()) @db.Timestamptz(3)
+  updated_at                               DateTime              @updatedAt @db.Timestamptz(3)
+  rel_entrega_notificacion_id_notificacion EntregaNotificacion[] @relation("EntregaNotificacion_id_notificacion")
+
+  @@index([id_usuario, leida_at, created_at])
+  @@map("notificacion")
+}
+
+model EntregaNotificacion {
+  id_entrega_notificacion Int          @id @default(autoincrement())
+  proveedor               String       @db.VarChar(60)
+  referencia_proveedor    String?      @db.VarChar(150)
+  estado                  String       @db.VarChar(30)
+  intento                 Int
+  error_codigo            String?      @db.VarChar(100)
+  siguiente_intento       DateTime?    @db.Timestamptz(3)
+  id_notificacion         Int
+  ref_id_notificacion     Notificacion @relation("EntregaNotificacion_id_notificacion", fields: [id_notificacion], references: [id_notificacion], onDelete: Restrict, onUpdate: Cascade)
+  created_at              DateTime     @default(now()) @db.Timestamptz(3)
+  updated_at              DateTime     @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_notificacion, intento])
+  @@index([id_notificacion])
+  @@map("entrega_notificacion")
+}

@@ -1,0 +1,387 @@
+// Farmacia Gaby V05 — auth. Prisma 7.8.0 / PostgreSQL.
+// Diseño nuevo; no aplicar como reemplazo de MediCore sobre una base existente.
+// Los IDs de otros servicios son referencias escalares, no relaciones entre bases.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EstadoRegistro {
+  ACTIVO
+  INACTIVO
+}
+
+enum TipoToken {
+  VERIFICAR_CORREO
+  RECUPERAR_PASSWORD
+}
+
+enum CanalNotificacion {
+  EMAIL
+  SMS
+  WHATSAPP
+  WEB
+}
+
+model Rol {
+  id_rol                 Int            @id @default(autoincrement())
+  codigo                 String         @unique @db.VarChar(45)
+  nombre                 String         @db.VarChar(100)
+  descripcion            String?
+  estado                 EstadoRegistro @default(ACTIVO)
+  created_at             DateTime       @default(now()) @db.Timestamptz(3)
+  updated_at             DateTime       @updatedAt @db.Timestamptz(3)
+  rel_rol_permiso_id_rol RolPermiso[]   @relation("RolPermiso_id_rol")
+  rel_usuario_rol_id_rol UsuarioRol[]   @relation("UsuarioRol_id_rol")
+
+  @@map("rol")
+}
+
+model Permiso {
+  id_permiso                 Int          @id @default(autoincrement())
+  codigo                     String       @unique @db.VarChar(100)
+  recurso                    String       @db.VarChar(80)
+  accion                     String       @db.VarChar(80)
+  descripcion                String?
+  created_at                 DateTime     @default(now()) @db.Timestamptz(3)
+  updated_at                 DateTime     @updatedAt @db.Timestamptz(3)
+  rel_rol_permiso_id_permiso RolPermiso[] @relation("RolPermiso_id_permiso")
+
+  @@map("permiso")
+}
+
+model RolPermiso {
+  id_rol_permiso Int      @id @default(autoincrement())
+  id_rol         Int
+  ref_id_rol     Rol      @relation("RolPermiso_id_rol", fields: [id_rol], references: [id_rol], onDelete: Restrict, onUpdate: Cascade)
+  id_permiso     Int
+  ref_id_permiso Permiso  @relation("RolPermiso_id_permiso", fields: [id_permiso], references: [id_permiso], onDelete: Restrict, onUpdate: Cascade)
+  created_at     DateTime @default(now()) @db.Timestamptz(3)
+  updated_at     DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_rol, id_permiso])
+  @@index([id_rol])
+  @@index([id_permiso])
+  @@map("rol_permiso")
+}
+
+model Usuario {
+  id_usuario                              Int                       @id @default(autoincrement())
+  nombre_completo                         String                    @db.VarChar(150)
+  /// Guardar trim/lower; índice funcional adicional impide duplicados por mayúsculas.
+  correo                                  String                    @unique @db.VarChar(254)
+  password_hash                           String                    @db.VarChar(255)
+  telefono                                String?                   @db.VarChar(25)
+  estado                                  EstadoRegistro            @default(ACTIVO)
+  correo_verificado_at                    DateTime?                 @db.Timestamptz(3)
+  ultimo_acceso                           DateTime?                 @db.Timestamptz(3)
+  bloqueo_hasta                           DateTime?                 @db.Timestamptz(3)
+  password_changed_at                     DateTime?                 @db.Timestamptz(3)
+  version_seguridad                       Int                       @default(1)
+  created_at                              DateTime                  @default(now()) @db.Timestamptz(3)
+  updated_at                              DateTime                  @updatedAt @db.Timestamptz(3)
+  rel_usuario_rol_id_usuario              UsuarioRol[]              @relation("UsuarioRol_id_usuario")
+  rel_cliente_id_usuario                  Cliente[]                 @relation("Cliente_id_usuario")
+  rel_empleado_id_usuario                 Empleado[]                @relation("Empleado_id_usuario")
+  rel_sesion_id_usuario                   Sesion[]                  @relation("Sesion_id_usuario")
+  rel_token_accion_id_usuario             TokenAccion[]             @relation("TokenAccion_id_usuario")
+  rel_factor_mfa_id_usuario               FactorMfa[]               @relation("FactorMfa_id_usuario")
+  rel_consentimiento_id_usuario           Consentimiento[]          @relation("Consentimiento_id_usuario")
+  rel_preferencia_notificacion_id_usuario PreferenciaNotificacion[] @relation("PreferenciaNotificacion_id_usuario")
+
+  @@index([estado])
+  @@map("usuario")
+}
+
+model UsuarioRol {
+  id_usuario_rol Int      @id @default(autoincrement())
+  asignado_por   Int?
+  id_usuario     Int
+  ref_id_usuario Usuario  @relation("UsuarioRol_id_usuario", fields: [id_usuario], references: [id_usuario], onDelete: Restrict, onUpdate: Cascade)
+  id_rol         Int
+  ref_id_rol     Rol      @relation("UsuarioRol_id_rol", fields: [id_rol], references: [id_rol], onDelete: Restrict, onUpdate: Cascade)
+  created_at     DateTime @default(now()) @db.Timestamptz(3)
+  updated_at     DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_usuario, id_rol])
+  @@index([id_usuario])
+  @@index([id_rol])
+  @@map("usuario_rol")
+}
+
+model Cliente {
+  id_cliente                       Int                @id @default(autoincrement())
+  nombre_facturacion               String?            @db.VarChar(200)
+  identificacion_fiscal            String?            @db.VarChar(30)
+  id_usuario                       Int
+  ref_id_usuario                   Usuario            @relation("Cliente_id_usuario", fields: [id_usuario], references: [id_usuario], onDelete: Restrict, onUpdate: Cascade)
+  created_at                       DateTime           @default(now()) @db.Timestamptz(3)
+  updated_at                       DateTime           @updatedAt @db.Timestamptz(3)
+  rel_direccion_cliente_id_cliente DireccionCliente[] @relation("DireccionCliente_id_cliente")
+
+  @@unique([id_usuario])
+  @@index([id_usuario])
+  @@map("cliente")
+}
+
+model Empleado {
+  id_empleado                       Int                @id @default(autoincrement())
+  codigo                            String             @unique @db.VarChar(30)
+  cargo                             String             @db.VarChar(100)
+  fecha_contratacion                DateTime           @db.Date
+  fecha_baja                        DateTime?          @db.Date
+  estado                            EstadoRegistro     @default(ACTIVO)
+  id_usuario                        Int
+  ref_id_usuario                    Usuario            @relation("Empleado_id_usuario", fields: [id_usuario], references: [id_usuario], onDelete: Restrict, onUpdate: Cascade)
+  created_at                        DateTime           @default(now()) @db.Timestamptz(3)
+  updated_at                        DateTime           @updatedAt @db.Timestamptz(3)
+  rel_empleado_sucursal_id_empleado EmpleadoSucursal[] @relation("EmpleadoSucursal_id_empleado")
+
+  @@unique([id_usuario])
+  @@index([id_usuario])
+  @@map("empleado")
+}
+
+model EmpleadoSucursal {
+  id_empleado_sucursal Int       @id @default(autoincrement())
+  /// Inventario.Sucursal
+  id_sucursal          Int
+  principal            Boolean   @default(false)
+  desde                DateTime  @default(now()) @db.Timestamptz(3)
+  hasta                DateTime? @db.Timestamptz(3)
+  id_empleado          Int
+  ref_id_empleado      Empleado  @relation("EmpleadoSucursal_id_empleado", fields: [id_empleado], references: [id_empleado], onDelete: Restrict, onUpdate: Cascade)
+  created_at           DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at           DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_empleado, id_sucursal])
+  @@index([id_sucursal])
+  @@index([id_empleado])
+  @@map("empleado_sucursal")
+}
+
+model DireccionCliente {
+  id_direccion_cliente Int            @id @default(autoincrement())
+  alias                String         @db.VarChar(60)
+  destinatario         String         @db.VarChar(150)
+  telefono             String         @db.VarChar(25)
+  departamento         String         @db.VarChar(100)
+  municipio            String         @db.VarChar(100)
+  zona                 String?        @db.VarChar(20)
+  direccion            String         @db.VarChar(500)
+  referencias          String?
+  latitud              Decimal?       @db.Decimal(10, 7)
+  longitud             Decimal?       @db.Decimal(10, 7)
+  predeterminada       Boolean        @default(false)
+  estado               EstadoRegistro @default(ACTIVO)
+  id_cliente           Int
+  ref_id_cliente       Cliente        @relation("DireccionCliente_id_cliente", fields: [id_cliente], references: [id_cliente], onDelete: Restrict, onUpdate: Cascade)
+  created_at           DateTime       @default(now()) @db.Timestamptz(3)
+  updated_at           DateTime       @updatedAt @db.Timestamptz(3)
+
+  @@index([id_cliente])
+  @@map("direccion_cliente")
+}
+
+model Sesion {
+  id_sesion          Int       @id @default(autoincrement())
+  refresh_token_hash String    @unique @db.VarChar(128)
+  familia            String    @db.Uuid
+  vence_at           DateTime  @db.Timestamptz(3)
+  revocada_at        DateTime? @db.Timestamptz(3)
+  ultimo_uso         DateTime? @db.Timestamptz(3)
+  dispositivo        String?   @db.VarChar(150)
+  ip_origen          String?   @db.Inet
+  user_agent         String?
+  id_usuario         Int
+  ref_id_usuario     Usuario   @relation("Sesion_id_usuario", fields: [id_usuario], references: [id_usuario], onDelete: Restrict, onUpdate: Cascade)
+  created_at         DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at         DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([familia])
+  @@index([vence_at])
+  @@index([id_usuario])
+  @@map("sesion")
+}
+
+model TokenAccion {
+  id_token_accion Int       @id @default(autoincrement())
+  tipo            TipoToken
+  token_hash      String    @unique @db.VarChar(128)
+  vence_at        DateTime  @db.Timestamptz(3)
+  consumido_at    DateTime? @db.Timestamptz(3)
+  id_usuario      Int
+  ref_id_usuario  Usuario   @relation("TokenAccion_id_usuario", fields: [id_usuario], references: [id_usuario], onDelete: Restrict, onUpdate: Cascade)
+  created_at      DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at      DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([vence_at])
+  @@index([id_usuario])
+  @@map("token_accion")
+}
+
+model FactorMfa {
+  id_factor_mfa                             Int                     @id @default(autoincrement())
+  tipo                                      String                  @db.VarChar(30)
+  secreto_cifrado                           String?
+  credencial_publica                        String?
+  habilitado_at                             DateTime?               @db.Timestamptz(3)
+  revocado_at                               DateTime?               @db.Timestamptz(3)
+  id_usuario                                Int
+  ref_id_usuario                            Usuario                 @relation("FactorMfa_id_usuario", fields: [id_usuario], references: [id_usuario], onDelete: Restrict, onUpdate: Cascade)
+  created_at                                DateTime                @default(now()) @db.Timestamptz(3)
+  updated_at                                DateTime                @updatedAt @db.Timestamptz(3)
+  rel_codigo_recuperacion_mfa_id_factor_mfa CodigoRecuperacionMfa[] @relation("CodigoRecuperacionMfa_id_factor_mfa")
+
+  @@index([id_usuario])
+  @@map("factor_mfa")
+}
+
+model CodigoRecuperacionMfa {
+  id_codigo_recuperacion_mfa Int       @id @default(autoincrement())
+  codigo_hash                String    @unique @db.VarChar(128)
+  consumido_at               DateTime? @db.Timestamptz(3)
+  id_factor_mfa              Int
+  ref_id_factor_mfa          FactorMfa @relation("CodigoRecuperacionMfa_id_factor_mfa", fields: [id_factor_mfa], references: [id_factor_mfa], onDelete: Restrict, onUpdate: Cascade)
+  created_at                 DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at                 DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([id_factor_mfa])
+  @@map("codigo_recuperacion_mfa")
+}
+
+model Consentimiento {
+  id_consentimiento Int       @id @default(autoincrement())
+  finalidad         String    @db.VarChar(80)
+  documento         String    @db.VarChar(150)
+  version_documento String    @db.VarChar(30)
+  otorgado_at       DateTime  @default(now()) @db.Timestamptz(3)
+  revocado_at       DateTime? @db.Timestamptz(3)
+  canal             String    @db.VarChar(30)
+  id_usuario        Int
+  ref_id_usuario    Usuario   @relation("Consentimiento_id_usuario", fields: [id_usuario], references: [id_usuario], onDelete: Restrict, onUpdate: Cascade)
+  created_at        DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at        DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([id_usuario])
+  @@map("consentimiento")
+}
+
+model PreferenciaNotificacion {
+  id_preferencia_notificacion Int               @id @default(autoincrement())
+  evento                      String            @db.VarChar(100)
+  canal                       CanalNotificacion
+  habilitada                  Boolean           @default(false)
+  id_usuario                  Int
+  ref_id_usuario              Usuario           @relation("PreferenciaNotificacion_id_usuario", fields: [id_usuario], references: [id_usuario], onDelete: Restrict, onUpdate: Cascade)
+  created_at                  DateTime          @default(now()) @db.Timestamptz(3)
+  updated_at                  DateTime          @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_usuario, evento, canal])
+  @@index([id_usuario])
+  @@map("preferencia_notificacion")
+}
+
+model AuditoriaEvento {
+  id_auditoria_evento Int      @id @default(autoincrement())
+  id_actor            Int?
+  actor_sistema       String?  @db.VarChar(100)
+  accion              String   @db.VarChar(100)
+  entidad             String   @db.VarChar(100)
+  referencia          String   @db.VarChar(100)
+  resultado           String   @db.VarChar(40)
+  correlacion         String   @db.VarChar(100)
+  cambios_sanitizados Json?
+  created_at          DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([entidad, referencia])
+  @@index([created_at])
+  @@map("auditoria_evento")
+}
+
+model OutboxEvento {
+  id_outbox_evento  Int       @id @default(autoincrement())
+  evento_id         String    @unique @default(uuid()) @db.Uuid
+  tipo              String    @db.VarChar(100)
+  agregado          String    @db.VarChar(100)
+  referencia        String    @db.VarChar(100)
+  version           Int
+  payload           Json
+  publicado_at      DateTime? @db.Timestamptz(3)
+  intentos          Int       @default(0)
+  siguiente_intento DateTime? @db.Timestamptz(3)
+  created_at        DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at        DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([publicado_at, siguiente_intento])
+  @@map("outbox_evento")
+}
+
+model InboxEvento {
+  id_inbox_evento Int       @id @default(autoincrement())
+  consumidor      String    @db.VarChar(100)
+  evento_id       String    @db.Uuid
+  procesado_at    DateTime? @db.Timestamptz(3)
+  resultado       String?   @db.VarChar(40)
+  created_at      DateTime  @default(now()) @db.Timestamptz(3)
+  updated_at      DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([consumidor, evento_id])
+  @@map("inbox_evento")
+}
+
+model OperacionIdempotente {
+  id_operacion_idempotente Int      @id @default(autoincrement())
+  alcance                  String   @db.VarChar(100)
+  clave                    String   @db.VarChar(150)
+  hash_solicitud           String   @db.VarChar(128)
+  estado                   String   @db.VarChar(40)
+  referencia_resultado     String?  @db.VarChar(100)
+  vence_at                 DateTime @db.Timestamptz(3)
+  created_at               DateTime @default(now()) @db.Timestamptz(3)
+  updated_at               DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([alcance, clave])
+  @@index([vence_at])
+  @@map("operacion_idempotente")
+}
+
+model Notificacion {
+  id_notificacion                          Int                   @id @default(autoincrement())
+  id_usuario                               Int
+  evento                                   String                @db.VarChar(100)
+  titulo                                   String                @db.VarChar(200)
+  mensaje                                  String
+  url_interna                              String?
+  canal                                    String                @db.VarChar(30)
+  leida_at                                 DateTime?             @db.Timestamptz(3)
+  clave_idempotencia                       String                @unique @db.VarChar(120)
+  created_at                               DateTime              @default(now()) @db.Timestamptz(3)
+  updated_at                               DateTime              @updatedAt @db.Timestamptz(3)
+  rel_entrega_notificacion_id_notificacion EntregaNotificacion[] @relation("EntregaNotificacion_id_notificacion")
+
+  @@index([id_usuario, leida_at, created_at])
+  @@map("notificacion")
+}
+
+model EntregaNotificacion {
+  id_entrega_notificacion Int          @id @default(autoincrement())
+  proveedor               String       @db.VarChar(60)
+  referencia_proveedor    String?      @db.VarChar(150)
+  estado                  String       @db.VarChar(30)
+  intento                 Int
+  error_codigo            String?      @db.VarChar(100)
+  siguiente_intento       DateTime?    @db.Timestamptz(3)
+  id_notificacion         Int
+  ref_id_notificacion     Notificacion @relation("EntregaNotificacion_id_notificacion", fields: [id_notificacion], references: [id_notificacion], onDelete: Restrict, onUpdate: Cascade)
+  created_at              DateTime     @default(now()) @db.Timestamptz(3)
+  updated_at              DateTime     @updatedAt @db.Timestamptz(3)
+
+  @@unique([id_notificacion, intento])
+  @@index([id_notificacion])
+  @@map("entrega_notificacion")
+}

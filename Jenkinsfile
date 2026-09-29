@@ -26,7 +26,17 @@ pipeline {
         stage('Deploy Staging') {
             steps {
                 echo 'Desplegando Farmacia Gaby en ambiente staging...'
+
+                withCredentials([
+                    string(credentialsId: 'gaby-postgres-user', variable: 'POSTGRES_USER'),
+                    string(credentialsId: 'gaby-postgres-password', variable: 'POSTGRES_PASSWORD'),
+                    string(credentialsId: 'gaby-postgres-db', variable: 'POSTGRES_DB')
+
+                ]) {
                 bat 'docker compose -p farmacia-gaby-staging -f docker-compose.yml -f docker-compose.staging.yml up -d'
+
+                }
+                
                 echo 'Despliegue staging completado.'
             }
         }

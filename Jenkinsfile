@@ -26,7 +26,7 @@ pipeline {
         stage('Deploy Staging') {
             steps {
                 echo 'Desplegando Farmacia Gaby en ambiente staging...'
-                bat 'docker compose -p farmacia-gaby-staging up -d'
+                bat 'docker compose -p farmacia-gaby-staging -f docker-compose.yml -f docker-compose.staging.yml up -d'
                 echo 'Despliegue staging completado.'
             }
         }

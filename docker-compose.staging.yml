@@ -1,0 +1,21 @@
+services:
+  postgres:
+    container_name: farmacia-gaby-staging-postgres
+
+  redis:
+    container_name: farmacia-gaby-staging-redis
+
+  auth:
+    container_name: farmacia-gaby-staging-auth
+
+  catalogo:
+    container_name: farmacia-gaby-staging-catalogo
+
+  inventario:
+    container_name: farmacia-gaby-staging-inventario
+
+  pedidos:
+    container_name: farmacia-gaby-staging-pedidos
+
+  pagos:
+    container_name: farmacia-gaby-staging-pagos

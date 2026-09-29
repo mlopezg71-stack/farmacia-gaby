@@ -136,7 +136,7 @@ model Producto {
 
 model PresentacionProducto {
   id_presentacion_producto                    Int                      @id @default(autoincrement())
-  sku                                         String                   @unique @db.VarChar(60)
+  sku                                         String?                  @unique @db.VarChar(60)
   codigo_barras                               String?                  @unique @db.VarChar(60)
   nombre                                      String                   @db.VarChar(150)
   tipo                                        TipoPresentacion

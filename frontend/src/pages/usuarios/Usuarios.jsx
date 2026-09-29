@@ -23,7 +23,7 @@ import {
 
 import { useAuth } from "../../context/AuthContext";
 import axiosClient from "../../api/axiosConfig";
-import logo from "../../assets/logos/medicore-Copy.png";
+import logo from "../../assets/FarmaciasGaby.png";
 
 const Usuarios = () => {
     const { usuario, logout } = useAuth();

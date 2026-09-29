@@ -32,6 +32,10 @@ services:
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/gaby_auth?schema=public"
       JWT_SECRET: "${JWT_SECRET}"
       JWT_EXPIRES_IN: "2h"
+      EMAIL_USER: "${EMAIL_USER}"
+      EMAIL_PASS: "${EMAIL_PASS}"
+    depends_on:
+      - postgres
 
   catalogo:
     build:
@@ -42,6 +46,9 @@ services:
     environment:
       PORT: 3002
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/gaby_catalogo?schema=public"
+      JWT_SECRET: "${JWT_SECRET}"
+    depends_on:
+      - postgres
 
   inventario:
     build:
@@ -52,6 +59,8 @@ services:
     environment:
       PORT: 3003
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/gaby_inventario?schema=public"
+    depends_on:
+      - postgres
 
   pedidos:
     build:
@@ -62,6 +71,11 @@ services:
     environment:
       PORT: 3004
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/gaby_pedidos?schema=public"
+      INVENTARIO_URL: "http://inventario:3003"
+      PAGOS_URL: "http://pagos:3005"
+    depends_on:
+      - postgres
+      - inventario
 
   pagos:
     build:
@@ -72,6 +86,9 @@ services:
     environment:
       PORT: 3005
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/gaby_pagos?schema=public"
+      PEDIDOS_URL: "http://pedidos:3004"
+    depends_on:
+      - postgres
 
 volumes:
   postgres_data:

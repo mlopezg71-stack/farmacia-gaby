@@ -19,7 +19,6 @@ import {
 
 import { useAuth } from "../../context/AuthContext";
 import axiosClient from "../../api/axiosConfig";
-import logo from "../../assets/logos/medicore-Copy.png";
 
 
 const Bitacora = () => {

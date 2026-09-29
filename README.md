@@ -43,6 +43,15 @@ El sistema utiliza una arquitectura basada en microservicios para separar las pr
 - `services/pedidos/` - Microservicio para la gestión de pedidos.
 - `services/pagos/` - Microservicio para la gestión de pagos.
 
+### Puertos de los microservicios
+
+- Auth - Puerto 3001
+- Catálogo - Puerto 3002
+- Inventario - Puerto 3003
+- Pedidos - Puerto 3004
+- Pagos - Puerto 3005
+- Frontend - Puerto 5173
+
 ### Infraestructura
 
 - PostgreSQL - Sistema de gestión de base de datos.
@@ -106,6 +115,71 @@ JWT_EXPIRES_IN=8h
 El frontend puede utilizar:
 
 VITE_API_URL=http://localhost:3000/api
+
+## Funcionalidades implementadas
+
+### Autenticación
+
+- Registro e inicio de sesión de clientes.
+- Autenticación mediante JWT.
+- Recuperación y restablecimiento de contraseña.
+- Gestión de información de cuenta.
+- Gestión de direcciones.
+- Control de acceso por roles.
+- Protección de rutas administrativas.
+
+### Catálogo
+
+- Gestión administrativa de productos.
+- Creación, visualización y modificación de productos.
+- Gestión de categorías.
+- Gestión de marcas y laboratorios.
+- Gestión de presentaciones.
+- Gestión de precios.
+- Asociación de categorías a productos.
+- Publicación y control de visibilidad de productos.
+- Catálogo público conectado con la base de datos.
+
+### Inventario
+
+- Consulta de existencias.
+- Control de stock físico, reservado y disponible.
+- Control de mínimos y máximos.
+- Gestión de lotes y existencias por sucursal.
+- Reservas de inventario.
+- Confirmación, consumo y liberación de reservas.
+- Dashboard administrativo de inventario.
+
+### Pedidos
+
+- Gestión de carrito.
+- Gestión de productos del carrito.
+- Creación y consulta de pedidos.
+- Información de contacto y facturación.
+- Gestión de envíos.
+- Integración con catálogo, inventario y pagos.
+
+### Pagos
+
+- Gestión de pagos.
+- Gestión de reembolsos.
+- Integración con pedidos.
+
+### Frontend
+
+- Página principal de Farmacia Gaby.
+- Catálogo público de productos.
+- Búsqueda y filtrado de productos.
+- Categorías.
+- Enfermedades comunes.
+- Ofertas.
+- Sucursales.
+- Contacto.
+- Dashboard administrativo.
+- Gestión de usuarios.
+- Gestión de catálogo.
+- Gestión de inventario.
+- Bitácora.
 
 ## Estado
 

@@ -6,10 +6,16 @@ import {
     eliminarItemCarrito,
 } from "../controllers/itemCarritoController.js";
 
+import { identificar } from "../middlewares/authMiddleware.js";
+import {
+    verificarPropietarioCarritoEnBody,
+    verificarPropietarioItem,
+} from "../middlewares/propietarioMiddleware.js";
+
 const router = express.Router();
 
-router.post("/", agregarItemCarrito);
-router.put("/:id", actualizarItemCarrito);
-router.delete("/:id", eliminarItemCarrito);
+router.post("/", identificar, verificarPropietarioCarritoEnBody, agregarItemCarrito);
+router.put("/:id", identificar, verificarPropietarioItem, actualizarItemCarrito);
+router.delete("/:id", identificar, verificarPropietarioItem, eliminarItemCarrito);
 
 export default router;

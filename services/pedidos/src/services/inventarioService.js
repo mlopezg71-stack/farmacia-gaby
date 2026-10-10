@@ -164,3 +164,31 @@ export const consumirReservaInventario = async (
 
     return data;
 };
+
+
+// Cantidad total disponible de una presentación en una sucursal
+// (existencia física menos reservada, sumando todos los lotes).
+export const obtenerDisponibilidadPresentacion = async (
+    id_presentacion,
+    id_sucursal
+) => {
+    const response = await fetch(
+        `${INVENTARIO_URL}/existencias?id_presentacion=${id_presentacion}&id_sucursal=${id_sucursal}`
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        const error = new Error(
+            data.message ||
+            "Error al consultar la disponibilidad de inventario"
+        );
+
+        error.status = response.status;
+        error.data = data;
+
+        throw error;
+    }
+
+    return Number(data.cantidad_disponible);
+};

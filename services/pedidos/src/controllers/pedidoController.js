@@ -778,3 +778,30 @@ export const consultarPagosPedido = async (req, res) => {
         });
     }
 };
+
+
+// Listar los pedidos del cliente que tiene la sesión iniciada
+export const listarMisPedidos = async (req, res) => {
+    try {
+        const pedidos = await prisma.pedido.findMany({
+            where: {
+                id_cliente: req.identidad.id_cliente,
+            },
+            orderBy: {
+                created_at: "desc",
+            },
+            include: {
+                rel_detalle_pedido_id_pedido: true,
+                rel_envio_id_pedido: true,
+            },
+        });
+
+        res.status(200).json(pedidos);
+    } catch (error) {
+        console.error("Error al listar mis pedidos:", error);
+
+        res.status(500).json({
+            message: "Error al listar los pedidos",
+        });
+    }
+};

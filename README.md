@@ -187,12 +187,7 @@ Proyecto en desarrollo.
 
 ## Autores
 
-**Grupo No. 6**
-
 - Marcous Samir Andree Lopez Gonzalez        0900-18-13299
-- Daniel Alejandro Morales Arias             0900-22-3068
-- Diego Morales Arias                        0900-22-3088
-- Christian Alexander Sierra Elias           0900-22-1815
 
 ## Universidad
 
